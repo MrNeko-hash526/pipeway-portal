@@ -1,46 +1,51 @@
-import React, { useEffect, useState } from "react"
+import React, { useEffect, useState, Suspense } from "react"
 import Dashboard from "./dashboard/Dashboard"
 import WritePolicy from "./write-a-policy/WritePolicy"
 
-// setup-area pages
-import SetupIndex from "./setup/index"
-import VendorSetup from "./setup/vendor-setup/index"
-import AddOrganizationPage from "./setup/vendor-setup/add"
-import UserSetup from "./setup/user-setup/index"
-import AddUserPage from "./setup/user-setup/add"
-import UserGroupsSetup from "./setup/user-groups-setup/index"
-import RiskManagement from "./setup/risk-management/RiskManagement"
-import StandardsAndCitationManagement from "./setup/standards-and-citation-management/index"
+// lazy-load feature pages to avoid intermittent HMR/ESM race errors
+const SetupIndex = React.lazy(() => import("./setup/index"))
+const VendorSetup = React.lazy(() => import("./setup/vendor-setup/index"))
+const AddOrganizationPage = React.lazy(() => import("./setup/vendor-setup/add"))
+const UserSetup = React.lazy(() => import("./setup/user-setup/index"))
+const AddUserPage = React.lazy(() => import("./setup/user-setup/add"))
+const UserGroupsSetup = React.lazy(() => import("./setup/user-groups-setup/index"))
+const AddGroupPage = React.lazy(() => import("./setup/user-groups-setup/add"))
+const RiskManagement = React.lazy(() => import("./setup/risk-management/RiskManagement"))
+const StandardsAndCitationManagement = React.lazy(() => import("./setup/standards-and-citation-management/index"))
 
-// root-level pages
+// root-level pages (keep eager if stable)
 import AuditManagement from "./audit-management/audit-management"
 import LicenceAndCertificates from "./licence-and-certificates/index"
 
-// other sub-pages
-import TrainingQuizzes from "./training/quizzes"
+// other sub-pages (lazy or eager as you prefer)
+const TrainingQuizzes = React.lazy(() => import("./training/quizzes"))
+
+const S = (el: React.ReactElement) => <Suspense fallback={<div className="p-6 text-center">Loading…</div>}>{el}</Suspense>
 
 const ROUTES: { [path: string]: React.ReactElement } = {
   "/": <Dashboard />,
   "/dashboard": <Dashboard />,
 
-  // setup area (only the five canonical pages)
-  "/setup": <SetupIndex />,
-  "/setup/vendor-setup": <VendorSetup />,
-  "/setup/vendor-setup/add": <AddOrganizationPage />,
-  "/setup/user-setup": <UserSetup />,
-  "/setup/user-setup/add": <AddUserPage />,
-  "/setup/user-groups-setup": <UserGroupsSetup />,
-  "/setup/risk-management": <RiskManagement />,
-  "/setup/standards-and-citation-management": <StandardsAndCitationManagement />,
+  // setup area (render lazy components inside Suspense)
+  "/setup": S(<SetupIndex />),
+  "/setup/vendor-setup": S(<VendorSetup />),
+  "/setup/vendor-setup/add": S(<AddOrganizationPage />),
+  "/setup/vendor-setup/edit": S(<AddOrganizationPage />),
+  "/setup/user-setup": S(<UserSetup />),
+  "/setup/user-setup/add": S(<AddUserPage />),
+  "/setup/user-setup/edit": S(<AddUserPage />),
+  "/setup/user-groups-setup": S(<UserGroupsSetup />),
+  "/setup/user-groups-setup/add": S(<AddGroupPage />),
+  "/setup/user-groups-setup/edit": S(<AddGroupPage />),
+  "/setup/risk-management": S(<RiskManagement />),
+  "/setup/standards-and-citation-management": S(<StandardsAndCitationManagement />),
 
-  // root-level mappings (use root modules)
+  // root-level mappings (eager)
   "/audit-management": <AuditManagement />,
-  "/training-and-test": <TrainingQuizzes />,
+  "/training-and-test": S(<TrainingQuizzes />),
 
   "/licence-and-certificates": <LicenceAndCertificates />,
-
-  // other sub-pages
-  "/training/quizzes": <TrainingQuizzes />,
+  "/training/quizzes": S(<TrainingQuizzes />),
 }
 
 export default function Router() {

@@ -91,7 +91,7 @@ export default function UserSetupPage() {
 
   // actions
   const handleEditClick = (user: any) => {
-    window.location.href = `/setup/user-setup/add?id=${encodeURIComponent(String(user.id))}`
+    window.location.href = `/setup/user-setup/edit?id=${encodeURIComponent(String(user.id))}`
   }
   const handleWarn = (id: number) => setUsers(prev => prev.map(u => (u.id === id ? { ...u, status: 'Pending' } : u)))
   const handleDelete = (id: number, name?: string) => {
@@ -260,7 +260,7 @@ export default function UserSetupPage() {
                 </td>
                 <td className="p-3 text-sm">
                   <div className="flex items-center gap-3">
-                    <Link href={`/setup/user-setup/add?id=${encodeURIComponent(String(o.id))}`} className="text-sky-600 cursor-pointer hover:underline">
+                    <Link href={`/setup/user-setup/edit?id=${encodeURIComponent(String(o.id))}`} className="text-sky-600 cursor-pointer hover:underline">
                       <span className="sr-only">Edit</span>
                       Edit
                     </Link>

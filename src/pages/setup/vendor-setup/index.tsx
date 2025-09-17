@@ -286,7 +286,9 @@ export default function VendorSetupPage() {
                 </td>
                 <td className="p-3 text-sm">
                   <div className="flex items-center gap-2">
-                    <button type="button" className="text-sky-600 cursor-pointer hover:underline" onClick={() => handleEditClick(o)}>Edit</button>
+                    <Link href={`/setup/vendor-setup/edit?id=${encodeURIComponent(String(o.id))}`} className="text-sky-600 hover:underline">
+                      Edit
+                    </Link>
                     <button type="button" className="text-amber-600 cursor-pointer hover:underline" onClick={() => handleWarn(o.id)}>Warn</button>
                     <button type="button" className="text-red-600 cursor-pointer hover:underline" onClick={() => handleDelete(o.id, o.name)}>Delete</button>
                   </div>
