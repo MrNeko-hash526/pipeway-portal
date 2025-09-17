@@ -1,0 +1,297 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* Updated color palette for modern professional look */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.35 0 0);
+  --card: oklch(0.98 0 0);
+  --card-foreground: oklch(0.35 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.35 0 0);
+  --primary: oklch(0.55 0.15 200);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.65 0.12 160);
+  --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.96 0 0);
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: oklch(0.65 0.12 160);
+  --accent-foreground: oklch(1 0 0);
+  --destructive: oklch(0.55 0.22 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.9 0 0);
+  --input: oklch(0.98 0 0);
+  --ring: oklch(0.55 0.15 200 / 0.5);
+  --chart-1: oklch(0.45 0.2 260);
+  --chart-2: oklch(0.55 0.15 220);
+  --chart-3: oklch(0.65 0.12 160);
+  --chart-4: oklch(0.7 0.15 80);
+  --chart-5: oklch(0.55 0.22 25);
+  --radius: 0.5rem;
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.35 0 0);
+  --sidebar-primary: oklch(0.55 0.15 200);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.65 0.12 160);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(0.9 0 0);
+  --sidebar-ring: oklch(0.55 0.15 200 / 0.5);
+  /* dropdown specific colors */
+  --dropdown-bg: var(--popover);
+  --dropdown-item-hover: rgba(59, 130, 246, 0.06);
+}
+
+.dark {
+  /* slightly darker background and clearer foreground for accessibility */
+  --background: oklch(0.06 0 0);
+  --foreground: oklch(1 0 0);
+  --card: oklch(0.10 0 0);
+  --card-foreground: oklch(0.98 0 0);
+  --popover: oklch(0.08 0 0);
+  --popover-foreground: oklch(1 0 0);
+  --primary: oklch(0.65 0.15 200);
+  --primary-foreground: oklch(0.06 0 0);
+  --secondary: oklch(0.18 0 0);
+  --secondary-foreground: oklch(1 0 0);
+  --muted: oklch(0.12 0 0);
+  /* make muted-foreground brighter for legibility */
+  --muted-foreground: oklch(0.85 0 0);
+  --accent: oklch(0.18 0 0);
+  --accent-foreground: oklch(1 0 0);
+  --destructive: oklch(0.5 0.2 25);
+  --destructive-foreground: oklch(1 0 0);
+  /* stronger border/input contrast */
+  --border: oklch(0.28 0 0);
+  --input: oklch(0.18 0 0);
+  --ring: oklch(0.7 0.15 200 / 0.6);
+  --chart-1: oklch(0.6 0.2 260);
+  --chart-2: oklch(0.7 0.15 220);
+  --chart-3: oklch(0.75 0.12 160);
+  --chart-4: oklch(0.8 0.15 80);
+  --chart-5: oklch(0.65 0.22 25);
+  --sidebar: oklch(0.03 0 0);
+  --sidebar-foreground: oklch(1 0 0);
+  --sidebar-primary: oklch(0.65 0.15 200);
+  --sidebar-primary-foreground: oklch(0.04 0 0);
+  --sidebar-accent: oklch(0.18 0 0);
+  --sidebar-accent-foreground: oklch(1 0 0);
+  --sidebar-border: oklch(0.25 0 0);
+  --sidebar-ring: oklch(0.7 0.15 200 / 0.6);
+  --dropdown-bg: var(--popover);
+  --dropdown-item-hover: rgba(99, 102, 241, 0.10);
+  --card-bluish-bg: oklch(0.12 0.05 260 / 0.18);
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Added Metro UI grid pattern animation */
+@layer utilities {
+  .bg-grid-pattern {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+    background-size: 20px 20px;
+  }
+
+  .dark .bg-grid-pattern {
+    background-image: linear-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  }
+
+  /* Smooth transition styles for Metro cards */
+  .transition-opacity {
+    transition: opacity 0.3s ease-in-out;
+  }
+
+  /* Slide + rotate animations for Metro card data swap */
+  @keyframes outDownRotate {
+    0% {
+      transform: translateY(0) rotateX(0deg);
+      opacity: 1;
+    }
+
+    100% {
+      transform: translateY(24px) rotateX(20deg);
+      opacity: 0;
+    }
+  }
+
+  @keyframes inUpRotate {
+    0% {
+      transform: translateY(-24px) rotateX(-20deg);
+      opacity: 0;
+    }
+
+    100% {
+      transform: translateY(0) rotateX(0deg);
+      opacity: 1;
+    }
+  }
+
+  .out-down-rotate {
+    animation: outDownRotate 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    transform-origin: center top;
+  }
+
+  .in-up-rotate {
+    animation: inUpRotate 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    transform-origin: center top;
+  }
+
+  /* small fade-in-up for dropdowns */
+  @keyframes fadeInUp {
+    0% {
+      transform: translateY(6px);
+      opacity: 0;
+    }
+
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  .dropdown-item-hover {
+    transition: background-color 150ms ease-in-out;
+  }
+
+  .dropdown-item-hover:hover,
+  .dropdown-item-hover:focus {
+    background-color: var(--dropdown-item-hover);
+  }
+
+  /* Header helpers */
+  .header-sharp-border {
+    background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.02));
+  }
+
+  .header-link-hover {
+    background-color: rgba(59, 130, 246, 0.04);
+    /* primary/5 fallback */
+  }
+
+  /* Bluish tint for cards in dark mode */
+  .card-bluish {
+    background-color: var(--card-bluish-bg, transparent);
+    background-image: linear-gradient(180deg, rgba(59, 130, 246, 0.06), rgba(99, 102, 241, 0.03));
+    background-blend-mode: overlay;
+  }
+
+  /* Accent glow for cards in dark mode */
+  .card-accent-glow {
+    box-shadow: 0 8px 22px rgba(59, 130, 246, 0.08), 0 3px 8px rgba(59, 130, 246, 0.05) inset;
+    transition: box-shadow 180ms ease-in-out, transform 180ms ease-in-out;
+  }
+
+  .card-accent-glow:hover {
+    box-shadow: 0 14px 36px rgba(59, 130, 246, 0.14), 0 5px 12px rgba(59, 130, 246, 0.06) inset;
+    transform: translateY(-2px) scale(1.005);
+  }
+}
+
+/* Hide native scrollbars but preserve scrolling behavior */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  /* IE and Edge */
+  scrollbar-width: none;
+  /* Firefox */
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  background: transparent;
+}
+
+/* Hide the page vertical scrollbar but keep scrolling available */
+html,
+body {
+  /* ensure normal scrolling behavior */
+  overflow-y: auto;
+}
+
+/* Hide vertical scrollbar on WebKit (Chrome, Edge, Safari) while preserving scroll */
+html::-webkit-scrollbar,
+body::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+
+/* Hide vertical scrollbar in Firefox */
+html,
+body {
+  scrollbar-width: none;
+}
+
+/* Respect user preference for reduced motion */
+@media (prefers-reduced-motion: reduce) {
+
+  .out-down-rotate,
+  .in-up-rotate,
+  .transition-opacity,
+  .animate-pulse {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* Ensure native select and option contrast in dark mode */
+.dark select,
+.dark select option {
+  background-color: var(--color-popover) !important;
+  color: var(--color-popover-foreground) !important;
+}
