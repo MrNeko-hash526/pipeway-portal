@@ -160,18 +160,18 @@ export function Header() {
                 Audit Management
               </Link>
               <Link
-                href="/policy-and-procedures"
+                href="/manage-policies"
                 onNavigate={() => setIsMobileMenuOpen(false)}
                 className={mobileNavLink}
               >
-                Policy & Procedures
+                Manage Policies
               </Link>
               <Link
-                href="/policy-and-procedures/write-a-policy"
+                href="/manage-policies/add"
                 onNavigate={() => setIsMobileMenuOpen(false)}
                 className={mobileNavLink}
               >
-                Write a Policy
+                Add Policy
               </Link>
               <Link
                 href="/licence-and-certificates"
@@ -207,26 +207,19 @@ export function Header() {
                   </Link>
                   <Link href="/audit-management" className={navLink}>
                     <ClipboardList className="h-5 w-5 text-foreground" />
-                    <span>Managing Audit</span>
+                    <span>Manage Audit</span>
                   </Link>
-                  <Link href="/policy-and-procedures" className={navLink}>
+                  <Link href="/manage-policies" className={navLink}>
                     <FileCheck className="h-5 w-5 text-foreground" />
-                    <span>Managing Policies </span>
+                    <span>Manage Policies</span>
                   </Link>
-                  {/* <Link
-                    href="/policy-and-procedures/write-a-policy"
-                    className={navLink}
-                  >
-                    <FileText className="h-5 w-5 text-foreground" />
-                    <span>Write a Policy</span>
-                  </Link> */}
                   <Link href="/licence-and-certificates" className={navLink}>
                     <BookOpen className="h-5 w-5 text-foreground" />
                     <span>Licence & Certificates</span>
                   </Link>
                   <Link href="/training-and-test" className={navLink}>
                     <Users className="h-5 w-5 text-foreground" />
-                    <span>Managing Training</span>
+                    <span>Manage Training</span>
                   </Link>
                 </nav>
                 <div className="text-sm text-muted-foreground md:hidden font-bold">

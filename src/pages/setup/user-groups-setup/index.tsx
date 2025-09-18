@@ -11,6 +11,10 @@ export default function UserGroupsSetupPage() {
   const [query, setQuery] = React.useState('')
   const [groups, setGroups] = React.useState(() => [...initialGroups])
 
+  // sorting state
+  const [sortKey, setSortKey] = React.useState<'name' | 'values' | null>(null)
+  const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('asc')
+
   const filtered = groups.filter(g => {
     const q = query.trim().toLowerCase()
     if (!q) return true
@@ -19,6 +23,27 @@ export default function UserGroupsSetupPage() {
       String(g.values).toLowerCase().includes(q)
     )
   })
+
+  // sorting logic
+  const sortedFiltered = React.useMemo(() => {
+    if (!sortKey) return filtered
+    return [...filtered].sort((a, b) => {
+      const aVal = a[sortKey]
+      const bVal = b[sortKey]
+      const cmp = aVal.localeCompare(bVal)
+      return sortDirection === 'asc' ? cmp : -cmp
+    })
+  }, [filtered, sortKey, sortDirection])
+
+  // handle sort click
+  const handleSort = (key: 'name' | 'values') => {
+    if (sortKey === key) {
+      setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6">
@@ -64,14 +89,18 @@ export default function UserGroupsSetupPage() {
           <thead>
             <tr className="bg-slate-50 text-slate-600 text-sm">
               <th className="p-3 text-left">#</th>
-              <th className="p-3 text-left">Group Name</th>
-              <th className="p-3 text-left">Group Values</th>
+              <th className="p-3 text-left cursor-pointer select-none" onClick={() => handleSort('name')}>
+                Group Name {sortKey === 'name' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
+              <th className="p-3 text-left cursor-pointer select-none" onClick={() => handleSort('values')}>
+                Group Values {sortKey === 'values' && (sortDirection === 'asc' ? '▲' : '▼')}
+              </th>
               <th className="p-3 text-left">Action</th>
             </tr>
           </thead>
 
           <tbody>
-            {filtered.map((g, idx) => (
+            {sortedFiltered.map((g, idx) => (
               <tr key={g.id} className="border-t even:bg-white/2">
                 <td className="p-3 text-sm w-12">{idx + 1}</td>
                 <td className="p-3 text-sm">{g.name}</td>

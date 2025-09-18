@@ -1,6 +1,8 @@
 import React, { useEffect, useState, Suspense } from "react"
 import Dashboard from "./dashboard/Dashboard"
-import WritePolicy from "./write-a-policy/WritePolicy"
+import ManagePolicies from "./manage-polocies/index"
+import AddPolicyHistoryPage from "./manage-polocies/Histroy"
+import ManagePoliciesAdd from "./manage-polocies/add"
 
 // lazy-load feature pages to avoid intermittent HMR/ESM race errors
 const SetupIndex = React.lazy(() => import("./setup/index"))
@@ -46,6 +48,11 @@ const ROUTES: { [path: string]: React.ReactElement } = {
 
   "/licence-and-certificates": <LicenceAndCertificates />,
   "/training/quizzes": S(<TrainingQuizzes />),
+  // unified manage policies route (replaces policy-and-procedures & write-a-policy)
+  "/manage-policies": <ManagePolicies />,
+  "/manage-policies/add": <ManagePoliciesAdd />,
+  "/manage-policies/edit": <ManagePoliciesAdd />,
+  "/manage-policies/Policy-History": <AddPolicyHistoryPage />,
 }
 
 export default function Router() {
