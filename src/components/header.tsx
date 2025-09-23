@@ -33,7 +33,7 @@ export function Header() {
 
   return (
     <>
-      <header className="bg-card border-b border-border sticky top-0 z-50">
+      <header className="header-sharp-border border-b border-border sticky top-0 z-50">
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
@@ -43,7 +43,7 @@ export function Header() {
                   P
                 </div>
                 <div className="hidden sm:block">
-                  <span className="text-lg font-extrabold text-foreground">Pipeway</span>
+                  <span className="text-lg font-extrabold text-foreground dark:text-card-foreground">Pipeway</span>
                 </div>
               </Link>
             </div>

@@ -18,9 +18,9 @@ const StandardsAndCitationManagement = React.lazy(() => import("./setup/standard
 // root-level pages (keep eager if stable)
 import AuditManagement from "./audit-management/audit-management"
 import LicenceAndCertificates from "./licence-and-certificates/index"
-
+import TrainingAndTestManagement from "./training-and-test/index"
 // other sub-pages (lazy or eager as you prefer)
-const TrainingQuizzes = React.lazy(() => import("./training/quizzes"))
+//const TrainingAndTestManagement = React.lazy(() => import("./training-and-test/index"))
 
 const S = (el: React.ReactElement) => <Suspense fallback={<div className="p-6 text-center">Loading…</div>}>{el}</Suspense>
 
@@ -44,10 +44,10 @@ const ROUTES: { [path: string]: React.ReactElement } = {
 
   // root-level mappings (eager)
   "/audit-management": <AuditManagement />,
-  "/training-and-test": S(<TrainingQuizzes />),
+  "/training-and-test": S(<TrainingAndTestManagement />),
 
   "/licence-and-certificates": <LicenceAndCertificates />,
-  "/training/quizzes": S(<TrainingQuizzes />),
+  //"/training/quizzes": S(<TrainingQuizzes />),
   // unified manage policies route (replaces policy-and-procedures & write-a-policy)
   "/manage-policies": <ManagePolicies />,
   "/manage-policies/add": <ManagePoliciesAdd />,

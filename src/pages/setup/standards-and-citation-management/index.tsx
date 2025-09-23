@@ -1,99 +1,137 @@
-import Link from '@/components/link'
-import React from 'react'
+import React from "react"
 
-const sampleStandards = [
-  { id: 1, standard: 'ISO 27001', citations: 12, reviews: 2, status: 'Active' },
-  { id: 2, standard: 'NIST CSF', citations: 8, reviews: 1, status: 'Active' },
-]
+const initialCategories = ["Information Security", "Privacy", "Operations"]
+const initialTitles = ["Policy", "Procedure", "Guideline"]
+const initialCitations = ["ISO 27001:2013", "NIST SP 800-53", "HIPAA"]
 
 export default function StandardsPage() {
-  const [query, setQuery] = React.useState('')
-  const [status, setStatus] = React.useState('All')
+  const [categories, setCategories] = React.useState<string[]>(initialCategories)
+  const [titles, setTitles] = React.useState<string[]>(initialTitles)
+  const [citations, setCitations] = React.useState<string[]>(initialCitations)
 
-  const filtered = sampleStandards.filter(u => {
-    const matchesQuery = !query || u.standard.toLowerCase().includes(query.toLowerCase())
-    const matchesStatus = status === 'All' || u.status === status
-    return matchesQuery && matchesStatus
-  })
+  const [category, setCategory] = React.useState<string>("")
+  const [title, setTitle] = React.useState<string>("")
+  const [citation, setCitation] = React.useState<string>("")
+  const [standardText, setStandardText] = React.useState<string>("")
+  const maxChars = 1500
+
+  const resetForm = () => {
+    setCategory("")
+    setTitle("")
+    setCitation("")
+    setStandardText("")
+  }
+
+  const addStandard = (e?: React.FormEvent) => {
+    e?.preventDefault()
+    // save logic here
+    // eslint-disable-next-line no-console
+    console.log("Saved standard:", { category, title, citation, standardText })
+    resetForm()
+  }
+
+  const addItemPrompt = (kind: "category" | "title" | "citation") => {
+    const label = kind === "category" ? "Category" : kind === "title" ? "Title" : "Citation"
+    const val = window.prompt(`Add new ${label}`)
+    if (!val) return
+    const trimmed = val.trim()
+    if (!trimmed) return
+    if (kind === "category") setCategories((s) => [trimmed, ...s])
+    if (kind === "title") setTitles((s) => [trimmed, ...s])
+    if (kind === "citation") setCitations((s) => [trimmed, ...s])
+    if (kind === "category") setCategory(trimmed)
+    if (kind === "title") setTitle(trimmed)
+    if (kind === "citation") setCitation(trimmed)
+  }
+
+  const remaining = Math.max(0, maxChars - standardText.length)
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-6">
-      <nav className="text-sm text-slate-600 mb-4">
-        <Link href="/">Home</Link>
-        <span className="mx-2">/</span>
-        <Link href="/setup">Setup</Link>
-        <span className="mx-2">/</span>
-        <span className="text-slate-500">Standards & Citation Management</span>
-      </nav>
-
-      <div className="flex items-center justify-between">
+    <div className="max-w-5xl mx-auto px-6 py-8">
+      <header className="mb-6 flex items-start justify-between gap-6">
         <div>
-          <h1 className="text-2xl font-semibold">Standards & Citation Management</h1>
-          <p className="text-sm text-muted-foreground">Manage standards, citations, and reviews.</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Add Standard</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">Create or manage standards and citations in a simple, professional layout.</p>
         </div>
 
-        <div>
-          <button className="inline-flex items-center bg-sky-600 text-white px-4 py-2 rounded-md">Add Standard</button>
+        <div className="flex items-center gap-3">
+          <button onClick={() => history.back()} className="h-10 px-4 text-sm rounded border bg-white hover:bg-slate-50 dark:bg-transparent dark:border-slate-700 dark:text-slate-200">Back</button>
+          <button onClick={() => { /* optionally open list view */ }} className="h-10 px-4 text-sm rounded bg-sky-600 text-white shadow">View Standards</button>
         </div>
-      </div>
+      </header>
 
-      <div className="mt-4 bg-white/5 border rounded-md p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-          <div>
-            <label className="block text-sm text-slate-600 mb-1">Search:</label>
-            <input value={query} onChange={e => setQuery(e.target.value)} className="w-full border rounded px-3 py-2" placeholder="Search" />
-          </div>
+      <main className="grid grid-cols-12 gap-6">
+        {/* Form merged with page background (no card) */}
+        <section className="col-span-12 p-0">
+          <form onSubmit={addStandard} className="space-y-6">
+            <div className="grid grid-cols-2 gap-4 items-center">
+              <label className="text-sm text-slate-700 dark:text-slate-200 h-10 flex items-center">Category*</label>
+              <div className="flex items-center gap-3">
+                <select
+                  value={category}
+                  onChange={(e) => setCategory(e.target.value)}
+                  className="flex-1 h-10 border rounded px-3 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
+                >
+                  <option value="">Select a category...</option>
+                  {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <button type="button" onClick={() => addItemPrompt("category")} className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white">Add Category</button>
+              </div>
+            </div>
 
-          <div>
-            <label className="block text-sm text-slate-600 mb-1">Status:</label>
-            <select value={status} onChange={e => setStatus(e.target.value)} className="w-full border rounded px-3 py-2">
-              <option>All</option>
-              <option>Active</option>
-              <option>Inactive</option>
-            </select>
-          </div>
+            <div className="grid grid-cols-2 gap-4 items-center">
+              <label className="text-sm text-slate-700 dark:text-slate-200 h-10 flex items-center">Title*</label>
+              <div className="flex items-center gap-3">
+                <select
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  className="flex-1 h-10 border rounded px-3 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
+                >
+                  <option value="">Select a title...</option>
+                  {titles.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <button type="button" onClick={() => addItemPrompt("title")} className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white">Add Title</button>
+              </div>
+            </div>
 
-          <div className="md:col-span-1 flex items-center justify-end">
-            <button className="border rounded px-3 py-2 text-sm">Export</button>
-          </div>
-        </div>
-      </div>
+            <div className="grid grid-cols-2 gap-4 items-center">
+              <label className="text-sm text-slate-700 dark:text-slate-200 h-10 flex items-center">Citation*</label>
+              <div className="flex items-center gap-3">
+                <select
+                  value={citation}
+                  onChange={(e) => setCitation(e.target.value)}
+                  className="flex-1 h-10 border rounded px-3 bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
+                >
+                  <option value="">Select a citation...</option>
+                  {citations.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+                <button type="button" onClick={() => addItemPrompt("citation")} className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white">Add Citation</button>
+              </div>
+            </div>
 
-      <div className="mt-6 overflow-x-auto">
-        <table className="min-w-full border-collapse table-auto">
-          <thead>
-            <tr className="bg-slate-50 text-slate-600 text-sm">
-              <th className="p-3 text-left">#</th>
-              <th className="p-3 text-left">Standard</th>
-              <th className="p-3 text-left">Citations</th>
-              <th className="p-3 text-left">Reviews</th>
-              <th className="p-3 text-left">Status</th>
-              <th className="p-3 text-left">Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((o, idx) => (
-              <tr key={o.id} className="border-t even:bg-white/2">
-                <td className="p-3 text-sm">{idx + 1}</td>
-                <td className="p-3 text-sm">{o.standard}</td>
-                <td className="p-3 text-sm">{o.citations}</td>
-                <td className="p-3 text-sm">{o.reviews}</td>
-                <td className="p-3 text-sm">
-                  <span className={`inline-flex items-center px-2 py-1 rounded text-xs ${o.status === 'Active' ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-700'}`}>{o.status}</span>
-                </td>
-                <td className="p-3 text-sm">
-                  <div className="flex items-center gap-2">
-                    <button className="text-sky-600">Edit</button>
-                    <button className="text-red-600">Delete</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            <div className="grid grid-cols-2 gap-4 items-start">
+              <label className="block text-sm text-slate-700 dark:text-slate-200 pt-2">Standard*</label>
+              <div>
+                <textarea
+                  value={standardText}
+                  onChange={(e) => setStandardText(e.target.value.slice(0, maxChars))}
+                  rows={8}
+                  className="w-full border rounded px-3 py-3 min-h-[160px] bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100"
+                  placeholder="Enter standard text..."
+                />
+                <div className="text-xs text-slate-500 dark:text-slate-300 mt-2">{remaining} Character(s) Remaining</div>
+              </div>
+            </div>
 
-      <div className="mt-6 text-center text-sm text-slate-500">© 2025 CAM powered by Goolean Technologies NA LLC</div>
+            <div className="flex items-center gap-3 pt-3">
+              <button type="submit" className="h-10 px-4 rounded bg-emerald-600 text-white shadow-sm">Add Standard</button>
+              <button type="button" onClick={resetForm} className="h-10 px-4 rounded border bg-white dark:bg-transparent dark:border-slate-700 dark:text-slate-200">Reset Standard</button>
+            </div>
+          </form>
+        </section>
+      </main>
+
+      <footer className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">© 2025 CAM powered by Goolean Technologies NA LLC</footer>
     </div>
   )
 }
