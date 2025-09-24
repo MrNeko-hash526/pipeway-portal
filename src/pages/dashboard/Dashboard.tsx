@@ -128,6 +128,40 @@ export default function Dashboard() {
         return () => clearInterval(id)
     }, [computeSetupHighlights])
 
+    // detect dark mode (respect page's .dark class and prefers-color-scheme)
+    const [isDark, setIsDark] = React.useState<boolean>(() => {
+      if (typeof document !== "undefined" && document.documentElement.classList.contains("dark")) return true
+      if (typeof window !== "undefined" && window.matchMedia) return window.matchMedia("(prefers-color-scheme: dark)").matches
+      return false
+    })
+
+    React.useEffect(() => {
+      if (typeof window === "undefined") return
+      const mm = window.matchMedia("(prefers-color-scheme: dark)")
+      const onChange = () => {
+        const cur = (document.documentElement?.classList.contains("dark")) || mm.matches
+        setIsDark(!!cur)
+      }
+      // observe class changes on <html> so toggling Tailwind dark class updates UI immediately
+      const obs = new MutationObserver(() => onChange())
+      obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+      if (mm.addEventListener) mm.addEventListener("change", onChange)
+      else mm.addListener(onChange)
+      return () => {
+        obs.disconnect()
+        if (mm.removeEventListener) mm.removeEventListener("change", onChange)
+        else mm.removeListener(onChange)
+      }
+    }, [])
+
+    const tooltipContentStyle = isDark
+      ? { backgroundColor: "rgba(0,0,0,0.92)", color: "#fff", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: 10 }
+      : { backgroundColor: "#fff", color: "#111827", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 8, padding: 10 }
+
+    const tooltipItemStyle = isDark ? { color: "#fff" } : { color: "#111827" }
+    const tooltipLabelStyle = isDark ? { color: "#fff", fontWeight: 600 } : { color: "#111827", fontWeight: 600 }
+    const legendWrapperStyle = isDark ? { color: "#fff" } : { color: "#111827" }
+
     return (
         <div className="max-w-7xl mx-auto px-6 sm:px-6 lg:px-8 py-4">
             <div className="mb-4">
@@ -176,8 +210,13 @@ export default function Dashboard() {
                     <CardContent>
                         <ResponsiveContainer width="100%" height={320}>
                             <PieChart>
-                                <Tooltip formatter={(v: any) => [v, "Count"]} />
-                                <Legend verticalAlign="bottom" height={36} />
+                                <Tooltip
+                                  formatter={(v: any) => [v, "Count"]}
+                                  contentStyle={tooltipContentStyle}
+                                  itemStyle={tooltipItemStyle}
+                                  labelStyle={tooltipLabelStyle}
+                                />
+                                <Legend verticalAlign="bottom" height={36} wrapperStyle={legendWrapperStyle} />
                                 <Pie
                                     data={auditSummary}
                                     cx="50%"
@@ -208,8 +247,8 @@ export default function Dashboard() {
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="label" />
                                 <YAxis />
-                                <Tooltip />
-                                <Legend />
+                                <Tooltip contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} />
+                                <Legend wrapperStyle={legendWrapperStyle} />
                                 <Bar dataKey="value" fill="#8884d8" barSize={36} radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
@@ -229,8 +268,8 @@ export default function Dashboard() {
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="title" interval={0} angle={-20} textAnchor="end" height={80} />
                                 <YAxis />
-                                <Tooltip />
-                                <Legend />
+                                <Tooltip contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} />
+                                <Legend wrapperStyle={legendWrapperStyle} />
                                 <Bar dataKey="Yes" stackId="a" fill="#0088FE" />
                                 <Bar dataKey="In Progress" stackId="a" fill="#00C49F" />
                                 <Bar dataKey="No" stackId="a" fill="#FFBB28" />

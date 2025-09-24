@@ -1,25 +1,10 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
-import Link from "@/components/link"
-import { ThemeToggle } from "./theme-toggle"
-import {
-  Menu,
-  X,
-  User,
-  Settings,
-  LogOut,
-  Bell,
-  HelpCircle,
-  Repeat,
-  Home,
-  FileText,
-  ClipboardList,
-  BookOpen,
-  FileCheck,
-  Users,
-} from "lucide-react"
+import { ThemeToggle } from "@/components/theme-toggle"
+import { CommandNavigation } from "@/components/command-navigation"
+import { Menu, X, User, Settings, LogOut, Bell, Command } from "lucide-react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,216 +13,110 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Badge } from "@/components/ui/badge"
+import Link from "@/components/link"
 
 export function Header() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [isCommandOpen, setIsCommandOpen] = useState(false)
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault()
+        setIsCommandOpen(true)
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown)
+    return () => document.removeEventListener("keydown", handleKeyDown)
+  }, [])
 
   return (
-    <header className="bg-card border-b border-border sticky top-0 z-50 shadow-sm backdrop-blur-sm">
-      <div className="container mx-auto px-4">
-        <div className="relative flex items-center justify-between h-17">
-          {/* Logo */}
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <div className="w-12 h-12 bg-primary rounded-sm flex items-center justify-center shadow-md border-2 border-primary/30">
-                <span className="text-primary-foreground font-extrabold text-xl tracking-tight uppercase">
+    <>
+      <header className="header-sharp-border border-b border-border sticky top-0 z-50">
+        <div className="container mx-auto px-4">
+          <div className="flex items-center justify-between h-16">
+            {/* Logo */}
+            <div className="flex items-center space-x-4">
+              <Link href="/" className="flex items-center gap-3">
+                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground font-bold">
                   P
-                </span>
-              </div>
-              <span className="text-xl font-extrabold text-foreground tracking-tight uppercase">
-                Pipeway
-              </span>
-            </div>
-          </div>
-
-          {/* Desktop Navigation moved to subnavbar */}
-          <div className="hidden md:block" />
-
-          {/* User Actions */}
-          <div className="flex items-center space-x-2">
-            <Button variant="ghost" size="sm" className="relative">
-              <Repeat className="h-5 w-5" />
-            </Button>
-
-            <Button variant="ghost" size="sm" className="relative">
-              <HelpCircle className="h-5 w-5" />
-            </Button>
-
-            <Button variant="ghost" size="sm" className="relative">
-              <Bell className="h-5 w-5" />
-              <Badge
-                className="absolute -top-1 -right-1"
-                variant="secondary"
-              >
-                3
-              </Badge>
-            </Button>
-
-            <div className="hidden sm:inline-flex">
-              <ThemeToggle />
-            </div>
-
-            {/* User Menu */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center space-x-2"
-                >
-                  <User className="h-4 w-4" />
-                  <span className="hidden sm:inline font-bold">Sid</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-48">
-                <DropdownMenuItem>
-                  <User className="h-4 w-4 mr-2" />
-                  Profile
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Settings
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem>
-                  <LogOut className="h-4 w-4 mr-2" />
-                  Sign Out
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <Button
-              variant="outline"
-              size="sm"
-              className="hidden sm:inline-flex"
-              onClick={() => {
-                /* TODO: logout handler */
-              }}
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Logout
-            </Button>
-
-            {/* Mobile Menu Toggle */}
-            <Button
-              variant="ghost"
-              size="sm"
-              className="md:hidden"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            >
-              {isMobileMenuOpen ? (
-                <X className="h-4 w-4" />
-              ) : (
-                <Menu className="h-4 w-4" />
-              )}
-            </Button>
-          </div>
-        </div>
-
-        {/* Mobile Navigation */}
-        {isMobileMenuOpen && (
-          <nav className="md:hidden py-4 border-t border-border">
-            <div className="flex flex-col space-y-3">
-              <Link
-                href="/dashboard"
-                onNavigate={() => setIsMobileMenuOpen(false)}
-                className={mobileNavLink}
-              >
-                Dashboard
-              </Link>
-              <Link
-                href="/setup"
-                onNavigate={() => setIsMobileMenuOpen(false)}
-                className={mobileNavLink}
-              >
-                Setup
-              </Link>
-              <Link
-                href="/audit-management"
-                onNavigate={() => setIsMobileMenuOpen(false)}
-                className={mobileNavLink}
-              >
-                Audit Management
-              </Link>
-              <Link
-                href="/manage-policies"
-                onNavigate={() => setIsMobileMenuOpen(false)}
-                className={mobileNavLink}
-              >
-                Manage Policies
-              </Link>
-              <Link
-                href="/manage-policies/add"
-                onNavigate={() => setIsMobileMenuOpen(false)}
-                className={mobileNavLink}
-              >
-                Add Policy
-              </Link>
-              <Link
-                href="/licence-and-certificates"
-                onNavigate={() => setIsMobileMenuOpen(false)}
-                className={mobileNavLink}
-              >
-                Licence & Certificates
-              </Link>
-              <Link
-                href="/training-and-test"
-                onNavigate={() => setIsMobileMenuOpen(false)}
-                className={mobileNavLink}
-              >
-                Training & Test Management
-              </Link>
-            </div>
-          </nav>
-        )}
-
-        {/* Sub-navbar */}
-        <div className="w-full border-t border-border bg-muted/5">
-          <div className="container mx-auto px-2">
-            <div className="flex items-center justify-between h-11">
-              <div className="flex items-center justify-center w-full">
-                <nav className="hidden md:flex md:flex-wrap items-center gap-1 justify-center">
-                  <Link href="/dashboard" className={navLink}>
-                    <Home className="h-5 w-5 text-foreground" />
-                    <span>Dashboard</span>
-                  </Link>
-                  <Link href="/setup" className={navLink}>
-                    <FileText className="h-5 w-5 text-foreground" />
-                    <span>Setup</span>
-                  </Link>
-                  <Link href="/audit-management" className={navLink}>
-                    <ClipboardList className="h-5 w-5 text-foreground" />
-                    <span>Manage Audit</span>
-                  </Link>
-                  <Link href="/manage-policies" className={navLink}>
-                    <FileCheck className="h-5 w-5 text-foreground" />
-                    <span>Manage Policies</span>
-                  </Link>
-                  <Link href="/licence-and-certificates" className={navLink}>
-                    <BookOpen className="h-5 w-5 text-foreground" />
-                    <span>Licence & Certificates</span>
-                  </Link>
-                  <Link href="/training-and-test" className={navLink}>
-                    <Users className="h-5 w-5 text-foreground" />
-                    <span>Manage Training</span>
-                  </Link>
-                </nav>
-                <div className="text-sm text-muted-foreground md:hidden font-bold">
-                  Notifications
                 </div>
+                <div className="hidden sm:block">
+                  <span className="text-lg font-extrabold text-foreground dark:text-card-foreground">Pipeway</span>
+                </div>
+              </Link>
+            </div>
+
+            {/* Command / quick nav (desktop) */}
+            <div className="hidden md:flex items-center space-x-4">
+              <Button variant="outline" onClick={() => setIsCommandOpen(true)} className="flex items-center space-x-2">
+                <Command className="h-4 w-4" />
+                <span className="text-sm">Navigation</span>
+                <Badge variant="secondary" className="ml-2 text-xs">⌘K</Badge>
+              </Button>
+            </div>
+
+            {/* Actions */}
+            <div className="flex items-center space-x-3">
+              <div className="hidden sm:block">
+                <ThemeToggle />
               </div>
+
+              <Button variant="ghost" size="sm" className="relative">
+                <Bell className="h-4 w-4" />
+                <Badge className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center p-0 text-xs">3</Badge>
+              </Button>
+
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className="flex items-center space-x-2">
+                    <User className="h-4 w-4" />
+                    <span className="hidden sm:inline text-sm font-medium">Sid</span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem>
+                    <User className="h-4 w-4 mr-2" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Settings className="h-4 w-4 mr-2" />
+                    Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem>
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Sign Out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <Button variant="ghost" size="sm" className="md:hidden" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
+                {isMobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+              </Button>
             </div>
           </div>
+
+          {/* Mobile navigation */}
+          {isMobileMenuOpen && (
+            <nav className="md:hidden py-4 border-t border-border">
+              <div className="flex flex-col space-y-3">
+                <Button variant="ghost" className="justify-start" onClick={() => { setIsCommandOpen(true); setIsMobileMenuOpen(false) }}>
+                  <Command className="h-4 w-4 mr-2" /> Open Navigation
+                </Button>
+
+                <Link href="/dashboard" className="px-2 py-2 rounded hover:bg-muted/50">Dashboard</Link>
+                <Link href="/setup" className="px-2 py-2 rounded hover:bg-muted/50">Setup</Link>
+                <Link href="/manage-policies" className="px-2 py-2 rounded hover:bg-muted/50">Manage Policies</Link>
+                <Link href="/manage-policies/add" className="px-2 py-2 rounded hover:bg-muted/50">Add Policy</Link>
+              </div>
+            </nav>
+          )}
         </div>
-      </div>
-    </header>
+      </header>
+
+      <CommandNavigation isOpen={isCommandOpen} onClose={() => setIsCommandOpen(false)} />
+    </>
   )
 }
-
-// Desktop nav link styles
-const navLink =
-  "flex items-center gap-2 px-4 py-1 rounded-sm font-semibold text-sm text-foreground hover:text-primary hover:bg-primary/5 transition-colors"
-
-// Mobile nav link styles
-const mobileNavLink =
-  "text-foreground hover:text-primary transition-colors px-2 py-1 font-medium"

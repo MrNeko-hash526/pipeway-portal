@@ -95,7 +95,7 @@ export default function AuditManagement() {
 
       {/* Charts at bottom */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div className="bg-card border rounded-lg p-4">
+        <div className="chart-bg border rounded-lg p-4">
           <h3 className="text-lg font-medium mb-3">Findings Distribution</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
@@ -125,7 +125,7 @@ export default function AuditManagement() {
           </ResponsiveContainer>
         </div>
 
-        <div className="bg-card border rounded-lg p-4">
+        <div className="chart-bg border rounded-lg p-4">
           <h3 className="text-lg font-medium mb-3">Counts Overview</h3>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={barData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>

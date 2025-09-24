@@ -5,7 +5,8 @@
 
 :root {
   /* Updated color palette for modern professional look */
-  --background: oklch(1 0 0);
+  /* page background (light mode) = rgb(238,238,238) */
+  --background: rgb(238 238 238);
   --foreground: oklch(0.35 0 0);
   --card: oklch(0.98 0 0);
   --card-foreground: oklch(0.35 0 0);
@@ -29,6 +30,8 @@
   --chart-3: oklch(0.65 0.12 160);
   --chart-4: oklch(0.7 0.15 80);
   --chart-5: oklch(0.55 0.22 25);
+  /* chart/graph background (light mode fallback) */
+  --chart-bg: transparent;
   --radius: 0.5rem;
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.35 0 0);
@@ -38,6 +41,8 @@
   --sidebar-accent-foreground: oklch(1 0 0);
   --sidebar-border: oklch(0.9 0 0);
   --sidebar-ring: oklch(0.55 0.15 200 / 0.5);
+  /* navbar / header background (light mode) = very light gray */
+  --navbar-bg: rgb(245 245 245);
   /* dropdown specific colors */
   --dropdown-bg: var(--popover);
   --dropdown-item-hover: rgba(59, 130, 246, 0.06);
@@ -45,7 +50,8 @@
 
 .dark {
   /* slightly darker background and clearer foreground for accessibility */
-  --background: oklch(0.06 0 0);
+  /* dark mode page background (use rgb(33,33,36)) */
+  --background: rgb(33 33 36);
   --foreground: oklch(1 0 0);
   --card: oklch(0.10 0 0);
   --card-foreground: oklch(0.98 0 0);
@@ -66,19 +72,18 @@
   --border: oklch(0.28 0 0);
   --input: oklch(0.18 0 0);
   --ring: oklch(0.7 0.15 200 / 0.6);
-  --chart-1: oklch(0.6 0.2 260);
+  --chart-1: oklch(0.6 0 0.2 260);
   --chart-2: oklch(0.7 0.15 220);
   --chart-3: oklch(0.75 0.12 160);
   --chart-4: oklch(0.8 0.15 80);
   --chart-5: oklch(0.65 0.22 25);
-  --sidebar: oklch(0.03 0 0);
-  --sidebar-foreground: oklch(1 0 0);
-  --sidebar-primary: oklch(0.65 0.15 200);
-  --sidebar-primary-foreground: oklch(0.04 0 0);
-  --sidebar-accent: oklch(0.18 0 0);
-  --sidebar-accent-foreground: oklch(1 0 0);
-  --sidebar-border: oklch(0.25 0 0);
-  --sidebar-ring: oklch(0.7 0.15 200 / 0.6);
+  /* navbar / header background (dark mode) = rgb(33,33,36) */
+  --navbar-bg: rgb(33 33 36);
+  --footer-bg: var(--navbar-bg);
+
+  /* chart/graph background in dark mode */
+  --chart-bg: rgb(33 33 36);
+
   --dropdown-bg: var(--popover);
   --dropdown-item-hover: rgba(99, 102, 241, 0.10);
   --card-bluish-bg: oklch(0.12 0.05 260 / 0.18);
@@ -216,6 +221,8 @@
 
   /* Header helpers */
   .header-sharp-border {
+    /* use navbar background variable so navbar/header matches light/dark modes */
+    background-color: var(--navbar-bg);
     background-image: linear-gradient(90deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.02));
   }
 
@@ -240,6 +247,22 @@
   .card-accent-glow:hover {
     box-shadow: 0 14px 36px rgba(59, 130, 246, 0.14), 0 5px 12px rgba(59, 130, 246, 0.06) inset;
     transform: translateY(-2px) scale(1.005);
+  }
+
+  /* helper utility to apply chart background using the CSS variable */
+  .chart-bg {
+    background-color: var(--chart-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    /* subtle elevation */
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+    transition: background-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  }
+
+  /* make sure it still reads well in dark mode */
+  .dark .chart-bg {
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
   }
 }
 

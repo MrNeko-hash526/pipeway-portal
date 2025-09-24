@@ -2,6 +2,18 @@
 
 import React from "react"
 import Link from "@/components/link"
+import * as yup from "yup"
+
+const groupSchema = yup
+  .object()
+  .strict(true)
+  .shape({
+    groupName: yup.string().trim().min(2, "Min 2 characters").required("Group name is required"),
+    values: yup
+      .array()
+      .of(yup.string().trim().min(2, "Min 2 characters").max(20, "Max 20 characters"))
+      .min(1, "Add at least one group value"),
+  })
 
 export default function AddGroupPage() {
   const [groupName, setGroupName] = React.useState("")
@@ -70,19 +82,23 @@ export default function AddGroupPage() {
   }, [groupName, values, errors.valueInput])
 
   const handleSave = async () => {
+    if (isSaving) return
     resetErrors()
-    const name = String(groupName ?? "").trim()
-    if (!name) {
-      setErrors(prev => ({ ...prev, groupName: "Group name is required" }))
-      return
-    }
-    if (name.length < 2) {
-      setErrors(prev => ({ ...prev, groupName: "Min 2 characters" }))
-      return
-    }
-
-    if (values.length === 0) {
-      setErrors(prev => ({ ...prev, values: "Add at least one group value" }))
+    try {
+      await groupSchema.validate({ groupName, values }, { abortEarly: false })
+    } catch (err: any) {
+      const next: { groupName?: string; values?: string } = {}
+      if (err.inner && Array.isArray(err.inner)) {
+        err.inner.forEach((violation: any) => {
+          if (!violation.path) return
+          if (violation.path.startsWith("values")) next.values = violation.message
+          else if (violation.path === "groupName") next.groupName = violation.message
+        })
+      } else if (err.path) {
+        if (err.path === "groupName") next.groupName = err.message
+        else if (err.path.startsWith("values")) next.values = err.message
+      }
+      setErrors(next)
       return
     }
 
@@ -94,17 +110,15 @@ export default function AddGroupPage() {
       const idParam = params.get("id")
 
       if (idParam) {
-        // edit existing
         const updated = groups.map((g: any) =>
-          String(g.id) === String(idParam) ? { ...g, name, values } : g
+          String(g.id) === String(idParam) ? { ...g, name: groupName.trim(), values } : g
         )
         localStorage.setItem("userGroups", JSON.stringify(updated))
       } else {
-        const newGroup = { id: Date.now(), name, values }
+        const newGroup = { id: Date.now(), name: groupName.trim(), values }
         groups.unshift(newGroup)
         localStorage.setItem("userGroups", JSON.stringify(groups))
       }
-      // navigate back to list
       window.location.href = "/setup/user-groups-setup"
     } catch (err) {
       console.error(err)
@@ -203,9 +217,7 @@ export default function AddGroupPage() {
             <button
               type="button"
               onClick={handleSave}
-              disabled={!canSave || isSaving}
-              className={`px-4 py-2 rounded-md text-white transition-colors ${canSave && !isSaving ? "bg-sky-600 hover:bg-sky-700" : "bg-slate-300 dark:bg-slate-600 cursor-not-allowed"}`}
-              aria-disabled={!canSave || isSaving}
+              className={`px-4 py-2 rounded-md text-white transition-colors ${isSaving ? "bg-slate-400" : "bg-sky-600 hover:bg-sky-700"}`}
             >
               {isSaving ? "Saving…" : "Save Group"}
             </button>

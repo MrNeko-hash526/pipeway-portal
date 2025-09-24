@@ -2,6 +2,7 @@ import React from "react"
 import { Header } from '@/components/header'
 import Router from "./pages/Router"
 import Breadcrumb from "@/components/breadcrumb"
+import { Footer } from "@/components/footer"
 
 export default function App() {
   return (
@@ -14,7 +15,7 @@ export default function App() {
         {/* existing router / page outlet */}
         <Router />
       </main>
-      {/* footer removed as requested */}
+      <Footer />
     </div>
   )
 }
