@@ -79,7 +79,7 @@ export function CommandNavigation({ isOpen, onClose }: CommandNavigationProps) {
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        className="w-full max-w-2xl bg-card rounded-lg shadow-lg border border-border overflow-hidden"
+        className="w-full max-w-2xl bg-card dark:bg-[rgb(33,33,36)] rounded-lg shadow-lg border border-border overflow-hidden"
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="flex items-center gap-3">

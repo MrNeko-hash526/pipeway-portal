@@ -3,6 +3,7 @@ import Dashboard from "./dashboard/Dashboard"
 import ManagePolicies from "./manage-polocies/index"
 import AddPolicyHistoryPage from "./manage-polocies/Histroy"
 import ManagePoliciesAdd from "./manage-polocies/add"
+//import AddCertificatePage from "./licence-and-certificates/add"
 
 // lazy-load feature pages to avoid intermittent HMR/ESM race errors
 const SetupIndex = React.lazy(() => import("./setup/index"))
@@ -14,6 +15,8 @@ const UserGroupsSetup = React.lazy(() => import("./setup/user-groups-setup/index
 const AddGroupPage = React.lazy(() => import("./setup/user-groups-setup/add"))
 const RiskManagement = React.lazy(() => import("./setup/risk-management/RiskManagement"))
 const StandardsAndCitationManagement = React.lazy(() => import("./setup/standards-and-citation-management/index"))
+// add certificate page (lazy)
+const AddCertificatePage = React.lazy(() => import("./licence-and-certificates/add"))
 
 // root-level pages (keep eager if stable)
 import AuditManagement from "./audit-management/audit-management"
@@ -45,14 +48,10 @@ const ROUTES: { [path: string]: React.ReactElement } = {
   // root-level mappings (eager)
   "/audit-management": <AuditManagement />,
   "/training-and-test": S(<TrainingAndTestManagement />),
-
-  "/licence-and-certificates": <LicenceAndCertificates />,
-  //"/training/quizzes": S(<TrainingQuizzes />),
-  // unified manage policies route (replaces policy-and-procedures & write-a-policy)
   "/manage-policies": <ManagePolicies />,
   "/manage-policies/add": <ManagePoliciesAdd />,
-  "/manage-policies/edit": <ManagePoliciesAdd />,
-  "/manage-policies/Policy-History": <AddPolicyHistoryPage />,
+  "/licence-and-certificates": <LicenceAndCertificates />,
+  "/licence-and-certificates/add": S(<AddCertificatePage />),
 }
 
 export default function Router() {
