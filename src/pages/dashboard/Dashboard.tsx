@@ -172,42 +172,52 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
-                 <MetroCard
-                     title={<div className="flex items-center"><IconPie /> <span>Audit</span></div>}
-                     data={auditSummary as any}
-                     updateInterval={8000}
-                     size="medium"
-                 />
+                {/* hoverable wrappers: light = white bg + black text on hover; dark = dark-gray bg + light text on hover */}
+                <div className="rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6]">
+                    <MetroCard
+                        title={<div className="flex items-center"><IconPie /> <span>Audit</span></div>}
+                        data={auditSummary as any}
+                        updateInterval={8000}
+                        size="medium"
+                    />
+                </div>
 
-                 <MetroCard
-                     title={<div className="flex items-center"><IconBars /> <span>Certificate</span></div>}
-                     data={certificateSummary as any}
-                     updateInterval={8000}
-                     size="medium"
-                 />
+                <div className="rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6]">
+                    <MetroCard
+                        title={<div className="flex items-center"><IconBars /> <span>Certificate</span></div>}
+                        data={certificateSummary as any}
+                        updateInterval={8000}
+                        size="medium"
+                    />
+                </div>
 
-                 <MetroCard
-                     title={<div className="flex items-center"><IconList /> <span>Notifications</span></div>}
-                     data={notificationsSummary as any}
-                     updateInterval={8000}
-                     size="medium"
-                 />
+                <div className="rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6]">
+                    <MetroCard
+                        title={<div className="flex items-center"><IconList /> <span>Notifications</span></div>}
+                        data={notificationsSummary as any}
+                        updateInterval={8000}
+                        size="medium"
+                    />
+                </div>
 
-                 <MetroCard
-                     title={<div className="flex items-center"><IconBars /> <span>Setup Highlights</span></div>}
-                     data={setupHighlights as any}
-                     updateInterval={8000}
-                     size="medium"
-                 />
+                <div className="rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6]">
+                    <MetroCard
+                        title={<div className="flex items-center"><IconBars /> <span>Setup Highlights</span></div>}
+                        data={setupHighlights as any}
+                        updateInterval={8000}
+                        size="medium"
+                    />
+                </div>
              </div>
              
             {/* Charts Section */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle><IconPie /> Auditor Finding Summary</CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                <div className="group rounded">
+                    <Card className="bg-slate-50 dark:bg-slate-800 group-hover:bg-white group-hover:text-black dark:group-hover:bg-[rgb(33,33,36)] dark:group-hover:text-[#e6e6e6] transition-colors">
+                      <CardHeader>
+                          <CardTitle><IconPie /> Auditor Finding Summary</CardTitle>
+                     </CardHeader>
+                     <CardContent>
                         <ResponsiveContainer width="100%" height={320}>
                             <PieChart>
                                 <Tooltip
@@ -215,6 +225,7 @@ export default function Dashboard() {
                                   contentStyle={tooltipContentStyle}
                                   itemStyle={tooltipItemStyle}
                                   labelStyle={tooltipLabelStyle}
+                                  wrapperStyle={{ zIndex: 9999 }}
                                 />
                                 <Legend verticalAlign="bottom" height={36} wrapperStyle={legendWrapperStyle} />
                                 <Pie
@@ -234,41 +245,45 @@ export default function Dashboard() {
                                 </Pie>
                             </PieChart>
                         </ResponsiveContainer>
-                    </CardContent>
+                     </CardContent>
                 </Card>
+                </div>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle><IconBars /> Organization Response Summary</CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                <div className="group rounded">
+                    <Card className="bg-slate-50 dark:bg-slate-800 group-hover:bg-white group-hover:text-black dark:group-hover:bg-[rgb(33,33,36)] dark:group-hover:text-[#e6e6e6] transition-colors">
+                      <CardHeader>
+                          <CardTitle><IconBars /> Organization Response Summary</CardTitle>
+                     </CardHeader>
+                     <CardContent>
                         <ResponsiveContainer width="100%" height={320}>
                             <BarChart data={notificationsSummary} margin={{ top: 10, right: 20, left: 0, bottom: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="label" />
                                 <YAxis />
-                                <Tooltip contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} />
+                                <Tooltip contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} wrapperStyle={{ zIndex: 9999 }} />
                                 <Legend wrapperStyle={legendWrapperStyle} />
                                 <Bar dataKey="value" fill="#8884d8" barSize={36} radius={[4, 4, 0, 0]} />
                             </BarChart>
                         </ResponsiveContainer>
-                    </CardContent>
+                     </CardContent>
                 </Card>
-            </div>
+                </div>
+             </div>
 
             {/* Response by Title Chart */}
             <div className="mt-6">
-                <Card>
-                    <CardHeader>
-                        <CardTitle><IconList /> Response by Title</CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                <div className="group rounded">
+                    <Card className="bg-slate-50 dark:bg-slate-800 group-hover:bg-white group-hover:text-black dark:group-hover:bg-[rgb(33,33,36)] dark:group-hover:text-[#e6e6e6] transition-colors">
+                      <CardHeader>
+                          <CardTitle><IconList /> Response by Title</CardTitle>
+                     </CardHeader>
+                     <CardContent>
                         <ResponsiveContainer width="100%" height={420}>
                             <BarChart data={responseByTitle} margin={{ top: 10, right: 20, left: 0, bottom: 60 }}>
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="title" interval={0} angle={-20} textAnchor="end" height={80} />
                                 <YAxis />
-                                <Tooltip contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} />
+                                <Tooltip contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} wrapperStyle={{ zIndex: 9999 }} />
                                 <Legend wrapperStyle={legendWrapperStyle} />
                                 <Bar dataKey="Yes" stackId="a" fill="#0088FE" />
                                 <Bar dataKey="In Progress" stackId="a" fill="#00C49F" />
@@ -277,17 +292,18 @@ export default function Dashboard() {
                                 <Bar dataKey="Unanswered" stackId="a" fill="#8884D8" />
                             </BarChart>
                         </ResponsiveContainer>
-                    </CardContent>
+                     </CardContent>
                 </Card>
-            </div>
+                </div>
+             </div>
 
             {/* Monthly Trend + Cross-Page Highlights */}
             <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* <Card>
-                    <CardHeader>
-                        <CardTitle>Monthly Trend</CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                {/* <div className="rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6]"> <Card>
+                     <CardHeader>
+                         <CardTitle>Monthly Trend</CardTitle>
+                     </CardHeader>
+                     <CardContent>
                         <ResponsiveContainer width="100%" height={160}>
                             <BarChart data={monthlyTrend} margin={{ left: 0, right: 20 }}>
                                 <CartesianGrid strokeDasharray="3 3" />
@@ -308,14 +324,13 @@ export default function Dashboard() {
                                 <Badge variant="secondary">Avg. Time: 2.3d</Badge>
                             </div>
                         </div>
-                    </CardContent>
+                     </CardContent>
                 </Card> */}
-
-                {/* <Card>
-                    <CardHeader>
-                        <CardTitle>Cross-Page Highlights</CardTitle>
-                    </CardHeader>
-                    <CardContent>
+                {/* <div className="rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6]"> <Card>
+                     <CardHeader>
+                         <CardTitle>Cross-Page Highlights</CardTitle>
+                     </CardHeader>
+                     <CardContent>
                         <div className="space-y-3">
                             <div className="text-sm text-slate-600">Important messages from other setup pages</div>
                             <ul className="list-none space-y-2 mt-3">
@@ -359,7 +374,7 @@ export default function Dashboard() {
                                 </div>
                             </div>
                         </div>
-                    </CardContent>
+                     </CardContent>
                 </Card> */}
             </div>
         </div>

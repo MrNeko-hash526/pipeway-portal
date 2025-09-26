@@ -48,16 +48,66 @@ export default function AuditManagement() {
     { label: "Annual", value: 1 },
   ]
 
-  const summaryData = [
-    { name: "Audits", value: auditsSnapshot[0].value },
-    { name: "Findings", value: findingsSnapshot[0].value },
-    { name: "Schedules", value: scheduleSnapshot[0].value },
-    { name: "Remediations", value: remediationSnapshot[0].value },
-    { name: "Reports", value: reportsSnapshot[0].value },
+  // pseudo values for "Create Audit Summary" card
+  const createSummarySnapshot = [
+    { label: "Audits Reviewed", value: 12 },
+    { label: "Findings", value: 29 },
+    { label: "Recommendations", value: 7 },
   ]
 
-  const barData = summaryData.map((d) => ({ name: d.name, value: d.value }))
-  const COLORS = ["#0EA5A4", "#2563EB", "#F59E0B", "#EF4444", "#7C3AED"]
+  // desired action cards (in order). Will reuse existing snapshot data when available.
+  const desiredCards = [
+    { title: "Questions Setup", href: "/audit-management/questions-setup" },
+    { title: "Question Groups Setup", href: "/audit-management/question-groups-setup" },
+    { title: "Audit Assignments", href: "/audit-management/assignments" },
+    { title: "View Vendor Response", href: "/audit-management/vendor-responses" },
+    { title: "Respond to Vendor Response", href: "/audit-management/respond-vendor" },
+    { title: "Create Audit Summary", href: "/audit-management/create-summary" },
+  ]
+
+  const dataSources = [
+    auditsSnapshot,
+    findingsSnapshot,
+    scheduleSnapshot,
+    remediationSnapshot,
+    reportsSnapshot,
+    createSummarySnapshot,
+  ]
+
+  // detect dark mode (uses html.dark class or prefers-color-scheme)
+  const [isDark, setIsDark] = React.useState<boolean>(() => {
+    if (typeof document !== "undefined" && document.documentElement.classList.contains("dark")) return true
+    if (typeof window !== "undefined" && window.matchMedia) return window.matchMedia("(prefers-color-scheme: dark)").matches
+    return false
+  })
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return
+    const mm = window.matchMedia("(prefers-color-scheme: dark)")
+    const onChange = () => {
+      const cur = (document.documentElement?.classList.contains("dark")) || mm.matches
+      setIsDark(!!cur)
+    }
+    const obs = new MutationObserver(() => onChange())
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] })
+    if (mm.addEventListener) mm.addEventListener("change", onChange)
+    else mm.addListener(onChange)
+    return () => {
+      obs.disconnect()
+      if (mm.removeEventListener) mm.removeEventListener("change", onChange)
+      else mm.removeListener(onChange)
+    }
+  }, [])
+
+  // tooltip / legend styles depending on theme
+  const tooltipContentStyle = isDark
+    ? { backgroundColor: "rgba(0,0,0,0.92)", color: "#fff", border: "1px solid rgba(255,255,255,0.06)", borderRadius: 8, padding: 8 }
+    : { backgroundColor: "#fff", color: "#111827", border: "1px solid rgba(0,0,0,0.06)", borderRadius: 8, padding: 8 }
+
+  const tooltipItemStyle = isDark ? { color: "#fff" } : { color: "#111827" }
+  const tooltipLabelStyle = isDark ? { color: "#fff", fontWeight: 600 } : { color: "#111827", fontWeight: 600 }
+  const legendWrapperStyle = isDark ? { color: "#fff" } : { color: "#111827" }
+  const gridStroke = isDark ? "#2b3036" : "#e6e6e6"
 
   return (
     <div className="min-h-[72vh] max-w-7xl mx-auto px-6 py-8">
@@ -68,28 +118,17 @@ export default function AuditManagement() {
         </div>
       </header>
 
-      {/* Top row: single responsive row with 5 cards (no horizontal scroller) */}
+      {/* Top row: render desired action cards. reuse available snapshots, append empty data for extras */}
       <section className="mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-          <Link href="/audit-management" className="block h-full">
-            <MetroCard title="Audits" data={auditsSnapshot as any} updateInterval={7000} size="medium" />
-          </Link>
-
-          <Link href="/audit/reports" className="block h-full">
-            <MetroCard title="Findings" data={findingsSnapshot as any} updateInterval={7000} size="medium" />
-          </Link>
-
-          <Link href="/audit/schedules" className="block h-full">
-            <MetroCard title="Schedules" data={scheduleSnapshot as any} updateInterval={7000} size="medium" />
-          </Link>
-
-          <Link href="/audit/remediation" className="block h-full">
-            <MetroCard title="Remediation" data={remediationSnapshot as any} updateInterval={7000} size="medium" />
-          </Link>
-
-          <Link href="/audit/reports" className="block h-full">
-            <MetroCard title="Reports" data={reportsSnapshot as any} updateInterval={7000} size="medium" />
-          </Link>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-6">
+          {desiredCards.map((card, idx) => {
+            const data = dataSources[idx] ?? []
+            return (
+              <Link key={card.title} href={card.href} className="block h-full">
+                <MetroCard title={card.title} data={data as any} updateInterval={7000} size="medium" />
+              </Link>
+            )
+          })}
         </div>
       </section>
 
@@ -99,6 +138,7 @@ export default function AuditManagement() {
           <h3 className="text-lg font-medium mb-3">Findings Distribution</h3>
           <ResponsiveContainer width="100%" height={300}>
             <PieChart>
+              <Tooltip contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} />
               <Pie
                 data={[
                   { name: "Open", value: findingsSnapshot[0].value },
@@ -112,15 +152,10 @@ export default function AuditManagement() {
                 outerRadius={100}
                 label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
               >
-                {[
-                  findingsSnapshot[0],
-                  findingsSnapshot[1],
-                  findingsSnapshot[2],
-                ].map((entry, index) => (
-                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                {[findingsSnapshot[0], findingsSnapshot[1], findingsSnapshot[2]].map((entry, index) => (
+                  <Cell key={`cell-${index}`} fill={["#0EA5A4", "#2563EB", "#F59E0B"][index % 3]} />
                 ))}
               </Pie>
-              <Tooltip />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -128,12 +163,15 @@ export default function AuditManagement() {
         <div className="chart-bg border rounded-lg p-4">
           <h3 className="text-lg font-medium mb-3">Counts Overview</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={barData} margin={{ top: 10, right: 20, left: 0, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" />
+            <BarChart
+              data={dataSources.map((d, i) => ({ name: ["Audits","Findings","Schedules","Remediation","Reports","Create Summary"][i], value: d[0]?.value ?? 0 }))}
+              margin={{ top: 10, right: 20, left: 0, bottom: 5 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke={gridStroke} />
               <XAxis dataKey="name" />
               <YAxis />
-              <Tooltip />
-              <Legend />
+              <Tooltip contentStyle={tooltipContentStyle} itemStyle={tooltipItemStyle} labelStyle={tooltipLabelStyle} />
+              <Legend wrapperStyle={legendWrapperStyle} />
               <Bar dataKey="value" fill="#2563EB" />
             </BarChart>
           </ResponsiveContainer>

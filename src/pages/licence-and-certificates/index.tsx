@@ -168,9 +168,7 @@ export default function LicenceAndCertificates() {
                 <td className="px-4 py-3 align-top text-slate-800 dark:text-slate-100">{r.company}</td>
 
                 <td className="px-4 py-3 align-top">
-                  <a href={r.fileUrl} className="text-sky-600 hover:underline">
-                    {r.fileName}
-                  </a>
+                  <span className="text-slate-800 dark:text-slate-100">{r.fileName}</span>
                 </td>
 
                 <td className="px-4 py-3 align-top text-slate-700 dark:text-slate-200">{r.type}</td>

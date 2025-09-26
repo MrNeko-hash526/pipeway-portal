@@ -40,10 +40,10 @@ export function Header() {
             <div className="flex items-center space-x-4">
               <Link href="/" className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground font-bold">
-                  P
+                  C
                 </div>
                 <div className="hidden sm:block">
-                  <span className="text-lg font-extrabold text-foreground dark:text-card-foreground">Pipeway</span>
+                  <span className="text-lg font-extrabold text-foreground dark:text-card-foreground">CAM</span>
                 </div>
               </Link>
             </div>
