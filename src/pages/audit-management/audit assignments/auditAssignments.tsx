@@ -1,5 +1,3 @@
-"use client"
-
 import React from "react"
 import Link from "@/components/link"
 
@@ -100,14 +98,12 @@ export default function AssignmentsListPage() {
               <label className="text-sm block mb-1">Search:</label>
               <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search" className="w-full h-10 border rounded px-3 bg-white dark:bg-[rgb(33,33,36)] dark:text-[#e6e6e6]" />
             </div>
-
             <div className="col-span-3 md:col-span-2">
               <label className="text-sm block mb-1">Organization:</label>
               <select value={orgFilter} onChange={(e) => setOrgFilter(e.target.value)} className="w-full h-10 border rounded px-3 bg-white dark:bg-[rgb(33,33,36)] dark:text-[#e6e6e6]">
                 {orgOptions.map(o => <option key={o} value={o}>{o}</option>)}
               </select>
             </div>
-
             <div className="col-span-3 md:col-span-2">
               <label className="text-sm block mb-1">Status:</label>
               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="w-full h-10 border rounded px-3 bg-white dark:bg-[rgb(33,33,36)] dark:text-[#e6e6e6]">
@@ -129,11 +125,7 @@ export default function AssignmentsListPage() {
                 const isSorted = sort.key === col.key && !!sort.dir
                 const arrow = isSorted ? (sort.dir === "asc" ? "▲" : "▼") : ""
                 return (
-                  <th
-                    key={col.key}
-                    className={`p-3 text-left border-b border-border ${col.sortable ? "cursor-pointer select-none" : ""}`}
-                    onClick={() => col.sortable && toggleSort(col.key)}
-                  >
+                  <th key={col.key} className={`p-3 text-left border-b border-border ${col.sortable ? "cursor-pointer select-none" : ""}`} onClick={() => col.sortable && toggleSort(col.key)}>
                     <div className="inline-flex items-center gap-2">
                       <span>{col.label}</span>
                       {col.sortable && <span className="text-xs text-slate-400">{arrow}</span>}
@@ -147,7 +139,9 @@ export default function AssignmentsListPage() {
           <tbody>
             {filteredAndSorted.length === 0 && (
               <tr>
-                <td colSpan={7} className="p-6 text-center text-slate-500 dark:text-[#e6e6e6]">No assignments found.</td>
+                <td colSpan={7} className="p-6 text-center text-slate-500 dark:text-[#e6e6e6]">
+                  No assignments found.
+                </td>
               </tr>
             )}
 
@@ -165,8 +159,12 @@ export default function AssignmentsListPage() {
                 </td>
                 <td className="p-3 border-b border-border align-top">
                   <div className="flex items-center gap-2">
-                    <Link href={`/audit-management/create-assignments?editId=${r.id}`} className="text-amber-600 hover:underline">Edit</Link>
-                    <button type="button" className="text-sky-600 hover:underline" onClick={() => alert(`View ${r.id}`)}>View</button>
+                    <Link href={`/audit-management/create-assignments?editId=${r.id}`} className="text-amber-600 hover:underline">
+                      Edit
+                    </Link>
+                    <Link href={`/audit-management/view-assignment?viewId=${r.id}`} className="text-sky-600 hover:underline">
+                      View
+                    </Link>
                   </div>
                 </td>
               </tr>

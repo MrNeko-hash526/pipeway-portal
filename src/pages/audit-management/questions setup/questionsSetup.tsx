@@ -1,5 +1,3 @@
-"use client"
-
 import React, { useMemo, useState } from "react"
 import Link from "@/components/link"
 import * as yup from "yup"
@@ -18,7 +16,7 @@ const SAMPLE_CATEGORY = {
   standard: "Provider shall keep and maintain appropriate documentation for audit review",
 }
 
-const SAMPLE_QUESTIONS: Question[] = [
+const INIT_QUESTIONS: Question[] = [
   { id: 1, text: "Do you have a Business Profile for your organization? If yes, please share the link or website for audit review.", status: "Active", logCount: 2 },
   { id: 2, text: "Do you provide adequate information on your organization's website for consumers on how to contact you? If so, please share a screenshot for review.", status: "Active", logCount: 1 },
   { id: 3, text: "Do you have adequate number of desktop, workstations, servers, telephone and internet services?", status: "Active", logCount: 0 },
@@ -32,8 +30,7 @@ export default function QuestionsSetupPage() {
   const [query, setQuery] = useState("")
   const [statusFilter, setStatusFilter] = useState<"" | "Active" | "Inactive" | "Draft">("")
   const [validationError, setValidationError] = useState<string | null>(null)
-
-  const [items] = useState<Question[]>(SAMPLE_QUESTIONS)
+  const [items, setItems] = useState<Question[]>(INIT_QUESTIONS)
 
   // validation schema for filters
   const filterSchema = yup.object({
@@ -60,6 +57,23 @@ export default function QuestionsSetupPage() {
     } catch (err: any) {
       setValidationError(err?.message ?? "Invalid input")
     }
+  }
+
+  // Approve/Disable handlers
+  const handleApprove = (id: number) => {
+    setItems(list =>
+      list.map(q =>
+        q.id === id ? { ...q, status: "Active" } : q
+      )
+    )
+  }
+
+  const handleDisable = (id: number) => {
+    setItems(list =>
+      list.map(q =>
+        q.id === id ? { ...q, status: "Inactive" } : q
+      )
+    )
   }
 
   const filtered = useMemo(() => {
@@ -151,14 +165,12 @@ export default function QuestionsSetupPage() {
                 <th className="w-16 text-center p-3 border-b border-border text-slate-600 dark:text-[#e6e6e6]">Log</th>
               </tr>
             </thead>
-
             <tbody>
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={5} className="p-6 text-center text-slate-500 dark:text-[#e6e6e6]">No questions match your filter.</td>
                 </tr>
               )}
-
               {filtered.map((q) => (
                 <tr key={q.id} className="odd:bg-white even:bg-slate-50 dark:odd:bg-[rgba(255,255,255,0.02)] dark:even:bg-transparent">
                   <td className="p-3 align-top border-b border-border text-slate-800 dark:text-[#e6e6e6]">{q.id}</td>
@@ -168,25 +180,51 @@ export default function QuestionsSetupPage() {
                       {q.status}
                     </span>
                   </td>
-
                   <td className="p-3 align-top border-b border-border text-center space-x-2">
                     <button title="Edit" className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[rgba(255,255,255,0.04)]">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M3 21v-3l11-11 3 3L6 21H3z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      <Link href={`/audit-management/questions-setup/add?id=${q.id}`}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                          <path d="M3 21v-3l11-11 3 3L6 21H3z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </Link>
                     </button>
                     <button title="Duplicate" className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[rgba(255,255,255,0.04)]">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden><rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/><rect x="2" y="2" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/></svg>
+                      <Link href={`/audit-management/questions-setup/add?duplicate=${q.id}`}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                          <rect x="9" y="9" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+                          <rect x="2" y="2" width="13" height="13" rx="2" stroke="currentColor" strokeWidth="1.5"/>
+                        </svg>
+                      </Link>
                     </button>
-                    <button title="Approve" className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[rgba(255,255,255,0.04)]">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <button
+                      title="Approve"
+                      className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[rgba(255,255,255,0.04)]"
+                      onClick={() => handleApprove(q.id)}
+                      disabled={q.status === "Active"}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                        <path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
                     </button>
-                    <button title="Disable" className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[rgba(255,255,255,0.04)]">
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden><path d="M18.36 5.64l-12.72 12.72" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                    <button
+                      title="Disable"
+                      className="p-1 rounded hover:bg-slate-100 dark:hover:bg-[rgba(255,255,255,0.04)]"
+                      onClick={() => handleDisable(q.id)}
+                      disabled={q.status === "Inactive"}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden>
+                        <path d="M18.36 5.64l-12.72 12.72" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
                     </button>
                   </td>
-
                   <td className="p-3 align-top border-b border-border text-center">
-                    <button title="View Log" className="h-8 w-8 inline-flex items-center justify-center rounded bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-[rgba(255,255,255,0.03)] dark:text-[#e6e6e6]">
-                      {q.logCount}
+                    <button
+                      title="View Log"
+                      className="h-8 w-8 inline-flex items-center justify-center rounded bg-gray-50 text-gray-700 hover:bg-gray-100 dark:bg-[rgba(255,255,255,0.03)] dark:text-[#e6e6e6]"
+                    >
+                      <Link href={`/audit-management/questions-setup/add?id=${q.id}&view=log`}>
+                        {q.logCount}
+                      </Link>
                     </button>
                   </td>
                 </tr>

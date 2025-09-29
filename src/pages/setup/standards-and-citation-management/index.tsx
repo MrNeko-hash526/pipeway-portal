@@ -52,20 +52,29 @@ function AddItemModal({
 }) {
   const [input, setInput] = React.useState("")
   const [active, setActive] = React.useState(true)
+  const [warning, setWarning] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     if (open) {
       setInput("")
       setActive(true)
+      setWarning(null)
     }
   }, [open])
 
   const handleAdd = () => {
     const trimmed = input.trim()
     if (!trimmed) return
-    if (!items.includes(trimmed)) {
-      setItems((s) => [trimmed, ...s])
+
+    const exists = items.some(
+      (item) => item.toLowerCase() === trimmed.toLowerCase()
+    )
+    if (exists) {
+      setWarning(`${type} "${trimmed}" already exists.`)
+      return
     }
+
+    setItems((prev) => [trimmed, ...prev])
     setSelected(trimmed)
     onClose()
   }
@@ -73,6 +82,7 @@ function AddItemModal({
   const handleReset = () => {
     setInput("")
     setActive(true)
+    setWarning(null)
   }
 
   if (!open || !type) return null
@@ -81,16 +91,27 @@ function AddItemModal({
     <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-40 z-50">
       <div className="bg-white dark:bg-slate-800 rounded shadow-lg p-6 w-full max-w-3xl max-h-[80vh] overflow-auto">
         <h2 className="text-xl font-semibold mb-4">Add {type}</h2>
+
+        {warning && (
+          <div className="mb-4 text-sm text-rose-600 bg-rose-50 border border-rose-200 px-3 py-2 rounded">
+            {warning}
+          </div>
+        )}
+
         <div className="mb-4 grid grid-cols-3 items-center gap-4">
           <label className="text-sm font-medium col-span-1">{type}*</label>
           <input
             type="text"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value)
+              setWarning(null)
+            }}
             className="col-span-2 h-10 rounded border border-slate-300 px-3 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
             placeholder={type}
           />
         </div>
+
         <div className="mb-6 grid grid-cols-3 items-center gap-4">
           <label className="text-sm font-medium col-span-1">Activation Status</label>
           <select
@@ -102,6 +123,7 @@ function AddItemModal({
             <option>Inactive</option>
           </select>
         </div>
+
         <div className="mb-4 max-h-60 overflow-y-auto">
           <table className="w-full text-sm border-collapse">
             <thead>
@@ -114,16 +136,22 @@ function AddItemModal({
             </thead>
             <tbody>
               {items.map((item, idx) => (
-                <tr key={idx} className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-800 dark:even:bg-slate-700">
+                <tr
+                  key={idx}
+                  className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-800 dark:even:bg-slate-700"
+                >
                   <td className="border border-slate-300 px-3 py-1">{idx + 1}</td>
                   <td className="border border-slate-300 px-3 py-1">{item}</td>
-                  <td className="border border-slate-300 px-3 py-1 text-center cursor-pointer hover:text-blue-600">✎</td>
+                  <td className="border border-slate-300 px-3 py-1 text-center cursor-pointer hover:text-blue-600">
+                    ✎
+                  </td>
                   <td className="border border-slate-300 px-3 py-1 text-center">✅</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+
         <div className="flex justify-end gap-3">
           <button
             onClick={handleAdd}
@@ -160,7 +188,9 @@ export default function StandardsPage() {
   const [standardText, setStandardText] = React.useState<string>("")
   const maxChars = 1500
 
-  const [modalType, setModalType] = React.useState<"Category" | "Title" | "Citation" | null>(null)
+  const [modalType, setModalType] = React.useState<
+    "Category" | "Title" | "Citation" | null
+  >(null)
 
   const [errors, setErrors] = React.useState<Partial<Record<string, string>>>({})
 
@@ -176,7 +206,10 @@ export default function StandardsPage() {
     e?.preventDefault()
     setErrors({})
     try {
-      await schema.validate({ category, title, citation, standardText }, { abortEarly: false })
+      await schema.validate(
+        { category, title, citation, standardText },
+        { abortEarly: false }
+      )
       console.log("Saved standard:", { category, title, citation, standardText })
       resetForm()
     } catch (err: any) {
@@ -205,186 +238,229 @@ export default function StandardsPage() {
   return (
     <>
       <style>{noCaretCss}</style>
-       <div className="max-w-5xl mx-auto px-6 py-8">
-      <header className="mb-6 flex items-start justify-between gap-6">
-        <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Add Standard</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
-            Create or manage standards and citations in a simple, professional layout.
-          </p>
-        </div>
+      <div className="max-w-5xl mx-auto px-6 py-8">
+        <header className="mb-6 flex items-start justify-between gap-6">
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+              Add Standard
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-300 mt-1">
+              Create or manage standards and citations in a simple, professional
+              layout.
+            </p>
+          </div>
 
-        <div className="flex items-center gap-3">
-          <button
-            onClick={() => history.back()}
-            className="h-10 px-4 text-sm rounded border bg-white hover:bg-slate-50 dark:bg-transparent dark:border-slate-700 dark:text-slate-200"
-          >
-            Back
-          </button>
-        </div>
-      </header>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => history.back()}
+              className="h-10 px-4 text-sm rounded border bg-white hover:bg-slate-50 dark:bg-transparent dark:border-slate-700 dark:text-slate-200"
+            >
+              Back
+            </button>
+          </div>
+        </header>
 
-      <main className="grid grid-cols-12 gap-6">
-        <section className="col-span-12 p-0">
-          <form onSubmit={addStandard} className="space-y-6">
-            {Object.keys(errors).length > 0 && (
-              <div className="rounded-md bg-rose-50 text-rose-700 px-4 py-2 text-sm border border-rose-100">
-                Please fix the highlighted fields below.
+        <main className="grid grid-cols-12 gap-6">
+          <section className="col-span-12 p-0">
+            <form onSubmit={addStandard} className="space-y-6">
+              {Object.keys(errors).length > 0 && (
+                <div className="rounded-md bg-rose-50 text-rose-700 px-4 py-2 text-sm border border-rose-100">
+                  Please fix the highlighted fields below.
+                </div>
+              )}
+
+              {/* Category */}
+              <div className="grid grid-cols-2 gap-4 items-center">
+                <label className="text-sm text-slate-700 dark:text-slate-200 h-10 flex items-center">
+                  Category*
+                </label>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={category}
+                    onChange={(e) => setCategory(e.target.value)}
+                    className={`flex-1 h-10 border rounded px-3 no-caret bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100 ${
+                      errors.category ? "border-rose-500" : ""
+                    }`}
+                    data-has-value={category ? "true" : "false"}
+                  >
+                    <option value="">Select a category...</option>
+                    {categories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => addItemPrompt("category")}
+                    className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white"
+                  >
+                    Add Category
+                  </button>
+                </div>
               </div>
-            )}
+              {errors.category && (
+                <div className="text-sm text-rose-600 mt-1">
+                  {errors.category}
+                </div>
+              )}
 
-            <div className="grid grid-cols-2 gap-4 items-center">
-              <label className="text-sm text-slate-700 dark:text-slate-200 h-10 flex items-center">Category*</label>
-              <div className="flex items-center gap-3">
-                <select
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className={`flex-1 h-10 border rounded px-3 no-caret bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100 ${errors.category ? "border-rose-500" : ""}`}
-                  data-has-value={category ? "true" : "false"}
+              {/* Title */}
+              <div className="grid grid-cols-2 gap-4 items-center">
+                <label className="text-sm text-slate-700 dark:text-slate-200 h-10 flex items-center">
+                  Title*
+                </label>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className={`flex-1 h-10 border rounded px-3 no-caret bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100 ${
+                      errors.title ? "border-rose-500" : ""
+                    }`}
+                    data-has-value={title ? "true" : "false"}
+                  >
+                    <option value="">Select a title...</option>
+                    {titles.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => addItemPrompt("title")}
+                    className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white"
+                  >
+                    Add Title
+                  </button>
+                </div>
+              </div>
+              {errors.title && (
+                <div className="text-sm text-rose-600 mt-1">
+                  {errors.title}
+                </div>
+              )}
+
+              {/* Citation */}
+              <div className="grid grid-cols-2 gap-4 items-center">
+                <label className="text-sm text-slate-700 dark:text-slate-200 h-10 flex items-center">
+                  Citation*
+                </label>
+                <div className="flex items-center gap-3">
+                  <select
+                    value={citation}
+                    onChange={(e) => setCitation(e.target.value)}
+                    className={`flex-1 h-10 border rounded px-3 no-caret bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100 ${
+                      errors.citation ? "border-rose-500" : ""
+                    }`}
+                    data-has-value={citation ? "true" : "false"}
+                  >
+                    <option value="">Select a citation...</option>
+                    {citations.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => addItemPrompt("citation")}
+                    className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white"
+                  >
+                    Add Citation
+                  </button>
+                </div>
+              </div>
+              {errors.citation && (
+                <div className="text-sm text-rose-600 mt-1">
+                  {errors.citation}
+                </div>
+              )}
+
+              {/* Standard */}
+              <div className="grid grid-cols-2 gap-4 items-start">
+                <label className="block text-sm text-slate-700 dark:text-slate-200 pt-2">
+                  Standard*
+                </label>
+                <div>
+                  <textarea
+                    value={standardText}
+                    onChange={(e) =>
+                      setStandardText(e.target.value.slice(0, maxChars))
+                    }
+                    rows={8}
+                    className={`w-full border rounded px-3 py-3 min-h-[160px] bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100 ${
+                      errors.standardText ? "border-rose-500" : ""
+                    }`}
+                    placeholder="Enter standard text..."
+                  />
+                  <div className="text-xs text-slate-500 dark:text-slate-300 mt-2">
+                    {remaining} Character(s) Remaining
+                  </div>
+                  {errors.standardText && (
+                    <div className="text-sm text-rose-600 mt-2">
+                      {errors.standardText}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 pt-3">
+                <button
+                  type="submit"
+                  className="h-10 px-4 rounded bg-emerald-600 text-white shadow-sm"
                 >
-                  <option value="">Select a category...</option>
-                  {categories.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
+                  Add Standard
+                </button>
                 <button
                   type="button"
-                  onClick={() => addItemPrompt("category")}
-                  className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white"
+                  onClick={resetForm}
+                  className="h-10 px-4 rounded border bg-white dark:bg-transparent dark:border-slate-700 dark:text-slate-200"
                 >
-                  Add Category
+                  Reset Standard
                 </button>
               </div>
-            </div>
-            {errors.category && <div className="text-sm text-rose-600 mt-1">{errors.category}</div>}
+            </form>
+          </section>
+        </main>
 
-            <div className="grid grid-cols-2 gap-4 items-center">
-              <label className="text-sm text-slate-700 dark:text-slate-200 h-10 flex items-center">Title*</label>
-              <div className="flex items-center gap-3">
-                <select
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className={`flex-1 h-10 border rounded px-3 no-caret bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100 ${errors.title ? "border-rose-500" : ""}`}
-                  data-has-value={title ? "true" : "false"}
-                >
-                  <option value="">Select a title...</option>
-                  {titles.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => addItemPrompt("title")}
-                  className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white"
-                >
-                  Add Title
-                </button>
-              </div>
-            </div>
-            {errors.title && <div className="text-sm text-rose-600 mt-1">{errors.title}</div>}
+        <AddItemModal
+          type={modalType}
+          open={modalType !== null}
+          onClose={() => setModalType(null)}
+          items={
+            modalType === "Category"
+              ? categories
+              : modalType === "Title"
+              ? titles
+              : modalType === "Citation"
+              ? citations
+              : []
+          }
+          setItems={
+            modalType === "Category"
+              ? setCategories
+              : modalType === "Title"
+              ? setTitles
+              : modalType === "Citation"
+              ? setCitations
+              : () => {}
+          }
+          setSelected={
+            modalType === "Category"
+              ? setCategory
+              : modalType === "Title"
+              ? setTitle
+              : modalType === "Citation"
+              ? setCitation
+              : () => {}
+          }
+        />
 
-            <div className="grid grid-cols-2 gap-4 items-center">
-              <label className="text-sm text-slate-700 dark:text-slate-200 h-10 flex items-center">Citation*</label>
-              <div className="flex items-center gap-3">
-                <select
-                  value={citation}
-                  onChange={(e) => setCitation(e.target.value)}
-                  className={`flex-1 h-10 border rounded px-3 no-caret bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100 ${errors.citation ? "border-rose-500" : ""}`}
-                  data-has-value={citation ? "true" : "false"}
-                >
-                  <option value="">Select a citation...</option>
-                  {citations.map((c) => (
-                    <option key={c} value={c}>
-                      {c}
-                    </option>
-                  ))}
-                </select>
-                <button
-                  type="button"
-                  onClick={() => addItemPrompt("citation")}
-                  className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white"
-                >
-                  Add Citation
-                </button>
-              </div>
-            </div>
-            {errors.citation && <div className="text-sm text-rose-600 mt-1">{errors.citation}</div>}
-
-            <div className="grid grid-cols-2 gap-4 items-start">
-              <label className="block text-sm text-slate-700 dark:text-slate-200 pt-2">Standard*</label>
-              <div>
-                <textarea
-                  value={standardText}
-                  onChange={(e) => setStandardText(e.target.value.slice(0, maxChars))}
-                  rows={8}
-                  className={`w-full border rounded px-3 py-3 min-h-[160px] bg-white dark:bg-slate-700 dark:border-slate-600 dark:text-slate-100 ${errors.standardText ? "border-rose-500" : ""}`}
-                  placeholder="Enter standard text..."
-                />
-                <div className="text-xs text-slate-500 dark:text-slate-300 mt-2">{remaining} Character(s) Remaining</div>
-                {errors.standardText && <div className="text-sm text-rose-600 mt-2">{errors.standardText}</div>}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-3 pt-3">
-              <button
-                type="submit"
-                className="h-10 px-4 rounded bg-emerald-600 text-white shadow-sm"
-              >
-                Add Standard
-              </button>
-              <button
-                type="button"
-                onClick={resetForm}
-                className="h-10 px-4 rounded border bg-white dark:bg-transparent dark:border-slate-700 dark:text-slate-200"
-              >
-                Reset Standard
-              </button>
-            </div>
-          </form>
-        </section>
-      </main>
-
-      <AddItemModal
-        type={modalType}
-        open={modalType !== null}
-        onClose={() => setModalType(null)}
-        items={
-          modalType === "Category"
-            ? categories
-            : modalType === "Title"
-            ? titles
-            : modalType === "Citation"
-            ? citations
-            : []
-        }
-        setItems={
-          modalType === "Category"
-            ? setCategories
-            : modalType === "Title"
-            ? setTitles
-            : modalType === "Citation"
-            ? setCitations
-            : () => {}
-        }
-        setSelected={
-          modalType === "Category"
-            ? setCategory
-            : modalType === "Title"
-            ? setTitle
-            : modalType === "Citation"
-            ? setCitation
-            : () => {}
-        }
-      />
-
-      <footer className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">
-        © 2025 CAM powered by Goolean Technologies NA LLC
-      </footer>
-    </div>
+        <footer className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">
+          © 2025 CAM powered by Goolean Technologies NA LLC
+        </footer>
+      </div>
     </>
-   )
+  )
 }

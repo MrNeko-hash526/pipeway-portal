@@ -18,6 +18,14 @@ const CreateReportPage = React.lazy(() => import("./audit-management/create audi
 const AuditManagement = React.lazy(() => import("./audit-management/audit-management"))
 const LicenceAndCertificates = React.lazy(() => import("./licence-and-certificates/index"))
 const TrainingAndTestManagement = React.lazy(() => import("./training-and-test/index"))
+const TrainingAndSop = React.lazy(() => import("./training-and-test/training-and-sop/index"))
+const QuestionBankSetupPage = React.lazy(() => import("./training-and-test/question-bank-setup/index"))
+const AddTrainingPage = React.lazy(() => import("./training-and-test/question-bank-setup/add"))
+const QuestioSetupPage = React.lazy(() => import("./training-and-test/question-setup/index"))
+const CreateQuestionBankPage = React.lazy(() => import("./training-and-test/question-setup/create"))  
+const TestListPage = React.lazy(() => import("./training-and-test/tests-setup/index"))
+const TestParametersPage = React.lazy(() => import("./training-and-test/tests-setup/createtestparameter"))
+const TakeTestPage = React.lazy(() => import("./training-and-test/view-tests-setup/index"))
 
 // Setup pages
 const SetupIndex = React.lazy(() => import("./setup/index"))
@@ -30,6 +38,8 @@ const AddGroupPage = React.lazy(() => import("./setup/user-groups-setup/add"))
 const RiskManagement = React.lazy(() => import("./setup/risk-management/RiskManagement"))
 const StandardsAndCitationManagement = React.lazy(() => import("./setup/standards-and-citation-management/index"))
 const AddCertificatePage = React.lazy(() => import("./licence-and-certificates/add"))
+const QuestionSetListPage = React.lazy(() => import("./training-and-test/question-setup/addquestion"))
+const CreateQuestionSetPage = React.lazy(() => import("./training-and-test/question-setup/createquestionset"))
 
 // Enhanced loading component with better UX
 const LoadingFallback = () => (
@@ -87,6 +97,16 @@ const ROUTES: { [path: string]: React.ReactElement } = {
 
   // Training and test routes
   "/training-and-test": S(<TrainingAndTestManagement />),
+  "/training-and-test/training-sop": S(<TrainingAndSop />),
+  "/training-and-test/question-bank-setup": S(<QuestionBankSetupPage />),
+  "/training-and-test/question-bank-setup/add": S(<AddTrainingPage />),
+  "/training-and-test/question-setup": S(<QuestioSetupPage />),
+  "/training-and-test/question-setup/create": S(<CreateQuestionBankPage />),
+  "/training-and-test/question-setup/add-list": S(<QuestionSetListPage />),
+  "/training-and-test/question-setup/createquestionset": S(<CreateQuestionSetPage />),
+  "/training-and-test/tests-setup": S(<TestListPage />),
+  "/training-and-test/tests-setup/create-test-parameter": S(<TestParametersPage />),
+  "/training-and-test/view-tests-setup": S(<TakeTestPage />),
 
   // Manage policies routes
   "/manage-policies": S(<ManagePolicies />),
