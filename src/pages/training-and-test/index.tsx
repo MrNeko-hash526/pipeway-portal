@@ -18,41 +18,41 @@ import {
 } from "recharts"
 
 export default function TrainingAndTestManagement() {
-  const coursesSnapshot = [
+  const trainingSOP = [
     { label: "Courses", value: 24 },
     { label: "Active", value: 18 },
     { label: "Pending", value: 6 },
   ]
 
-  const quizzesSnapshot = [
+  const questionBankSetup = [
     { label: "Total Quizzes", value: 72 },
     { label: "Due", value: 8 },
     { label: "Overdue", value: 2 },
   ]
 
-  const assignmentsSnapshot = [
+  const questionSetup = [
     { label: "Assigned", value: 32 },
     { label: "Completed", value: 20 },
     { label: "Overdue", value: 4 },
   ]
 
-  const sessionsSnapshot = [
+  const testsSetup= [
     { label: "Upcoming Sessions", value: 5 },
     { label: "Ongoing", value: 2 },
     { label: "Completed", value: 40 },
   ]
 
-  const resultsSnapshot = [
+  const viewTestsSetup = [
     { label: "Pass", value: 180 },
     { label: "Fail", value: 15 },
     { label: "Pending", value: 12 },
   ]
 
   const summaryData = [
-    { name: "Courses", value: coursesSnapshot[0].value },
-    { name: "Quizzes", value: quizzesSnapshot[0].value },
-    { name: "Assignments", value: assignmentsSnapshot[0].value },
-    { name: "Sessions", value: sessionsSnapshot[0].value },
+    { name: "Courses", value: trainingSOP[0].value },
+    { name: "Quizzes", value: questionBankSetup[0].value },
+    { name: "Assignments", value: questionSetup[0].value },
+    { name: "Sessions", value: viewTestsSetup[0].value },
   ]
 
   const barData = summaryData.map((d) => ({ name: d.name, value: d.value }))
@@ -68,29 +68,31 @@ export default function TrainingAndTestManagement() {
       </header>
 
       {/* Top row: 3 cards */}
-      <section className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6 mb-6">
-        <Link href="/training-and-test" className="block h-full">
-          <MetroCard title="Courses" data={coursesSnapshot as any} updateInterval={7000} size="large" />
+      <section className=" mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+        <Link href="/training-and-test/training-sop" className="block h-full">
+          <MetroCard title="Training and SOP" data={trainingSOP as any} updateInterval={7000} size="medium" />
         </Link>
 
-        <Link href="/training-and-test/quizzes" className="block h-full">
-          <MetroCard title="Quizzes" data={quizzesSnapshot as any} updateInterval={7000} size="large" />
+        <Link href="/training-and-test/question-bank-setup" className="block h-full">
+          <MetroCard title="Question Bank Setup" data={questionBankSetup as any} updateInterval={7000} size="medium" />
         </Link>
 
-        <Link href="/training-and-test/assignments" className="block h-full">
-          <MetroCard title="Assignments" data={assignmentsSnapshot as any} updateInterval={7000} size="large" />
+        <Link href="/training-and-test/question-setup" className="block h-full">
+          <MetroCard title="Question setup" data={questionSetup as any} updateInterval={7000} size="medium" />
         </Link>
-      </section>
+      
 
       {/* Bottom row: centered 2 cards */}
-      <section className="grid grid-cols-1 md:grid-cols-2 gap-6 md:w-3/5 md:mx-auto mb-6">
-        <Link href="/training-and-test/sessions" className="block h-full">
-          <MetroCard title="Training Sessions" data={sessionsSnapshot as any} updateInterval={7000} size="large" />
+      
+        <Link href="/training-and-test/tests-setup" className="block h-full">
+          <MetroCard title="Tests Setup" data={viewTestsSetup as any} updateInterval={7000} size="medium" />
         </Link>
 
-        <Link href="/training-and-test/results" className="block h-full">
-          <MetroCard title="Results" data={resultsSnapshot as any} updateInterval={7000} size="large" />
+        <Link href="/training-and-test/view-tests-setup" className="block h-full">
+          <MetroCard title="View Tests Setup" data={testsSetup as any} updateInterval={7000} size="medium" />
         </Link>
+        </div>
       </section>
 
       {/* Charts at bottom */}
@@ -101,9 +103,9 @@ export default function TrainingAndTestManagement() {
             <PieChart>
               <Pie
                 data={[
-                  { name: "Courses", value: coursesSnapshot[0].value },
-                  { name: "Quizzes", value: quizzesSnapshot[0].value },
-                  { name: "Assignments", value: assignmentsSnapshot[0].value },
+                  { name: "Courses", value: trainingSOP[0].value },
+                  { name: "Quizzes", value: questionBankSetup[0].value },
+                  { name: "Assignments", value: questionSetup[0].value },
                 ]}
                 dataKey="value"
                 nameKey="name"
@@ -113,9 +115,9 @@ export default function TrainingAndTestManagement() {
                 label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}
               >
                 {[
-                  { value: coursesSnapshot[0].value },
-                  { value: quizzesSnapshot[0].value },
-                  { value: assignmentsSnapshot[0].value },
+                  { value: trainingSOP[0].value },
+                  { value: questionBankSetup[0].value },
+                  { value: questionSetup[0].value },
                 ].map((_, index) => (
                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                 ))}

@@ -264,6 +264,42 @@
   .dark .chart-bg {
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
   }
+
+  /* Recharts tooltip: force light-mode = white bg + black text, dark-mode = dark gray + light text.
+     Use high specificity + !important so theme overrides from parent wrappers or inline styles don't break it. */
+  .recharts-tooltip-wrapper,
+  .recharts-default-tooltip {
+    pointer-events: none;
+    z-index: 9999;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+    padding: 8px;
+  }
+
+  /* Light mode (no .dark on <html>) */
+  html:not(.dark) .recharts-tooltip-wrapper,
+  html:not(.dark) .recharts-default-tooltip {
+    background: #ffffff !important;
+    color: #111827 !important;
+    border: 1px solid rgba(0, 0, 0, 0.06) !important;
+  }
+
+  /* Dark mode (.dark on <html>) */
+  html.dark .recharts-tooltip-wrapper,
+  html.dark .recharts-default-tooltip {
+    background: rgba(0, 0, 0, 0.92) !important;
+    color: #e6e6e6 !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+  }
+
+  /* Ensure inner tooltip elements inherit the color */
+  html:not(.dark) .recharts-tooltip-wrapper * {
+    color: #111827 !important;
+  }
+
+  html.dark .recharts-tooltip-wrapper * {
+    color: #e6e6e6 !important;
+  }
 }
 
 /* Hide native scrollbars but preserve scrolling behavior */
