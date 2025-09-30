@@ -49,8 +49,10 @@ export default function ManagePoliciesPage() {
   const [query, setQuery] = React.useState<string>("")
 
   // sorting state
-  const [sortKey, setSortKey] = React.useState<keyof Policy | null>(null)
-  const [sortDirection, setSortDirection] = React.useState<"asc" | "desc">("asc")
+  const [sort, setSort] = React.useState<{ key: keyof Policy | null; dir: "asc" | "desc" | null }>({
+    key: null,
+    dir: null,
+  })
 
   // confirmation and toasts
   const [confirm, setConfirm] = React.useState<{ id: number; message: string } | null>(null)
@@ -82,33 +84,32 @@ export default function ManagePoliciesPage() {
 
   // sorting logic
   const sortedFiltered = React.useMemo(() => {
-    if (!sortKey) return filtered
+    if (!sort.key || !sort.dir) return filtered
+    const dirMul = sort.dir === "asc" ? 1 : -1
+    
     return [...filtered].sort((a, b) => {
-      const aVal = a[sortKey]
-      const bVal = b[sortKey]
-      let cmp = 0
-      if (sortKey === "expDate") {
+      const key = sort.key as keyof Policy
+      const aVal = a[key]
+      const bVal = b[key]
+      
+      if (key === "expDate") {
         // date sort
         const aDate = aVal ? new Date(aVal as string) : new Date(0)
         const bDate = bVal ? new Date(bVal as string) : new Date(0)
-        cmp = aDate.getTime() - bDate.getTime()
+        return (aDate.getTime() - bDate.getTime()) * dirMul
       } else if (typeof aVal === "string" && typeof bVal === "string") {
-        cmp = aVal.localeCompare(bVal)
+        return aVal.localeCompare(bVal) * dirMul
       } else {
-        cmp = (aVal as any) - (bVal as any)
+        return ((aVal as any) - (bVal as any)) * dirMul
       }
-      return sortDirection === "asc" ? cmp : -cmp
     })
-  }, [filtered, sortKey, sortDirection])
+  }, [filtered, sort])
 
   // handle sort click
-  const handleSort = (key: keyof Policy) => {
-    if (sortKey === key) {
-      setSortDirection(sortDirection === "asc" ? "desc" : "asc")
-    } else {
-      setSortKey(key)
-      setSortDirection("asc")
-    }
+  const toggleSort = (key: keyof Policy) => {
+    if (sort.key !== key) return setSort({ key, dir: "asc" })
+    if (sort.dir === "asc") setSort({ key, dir: "desc" })
+    else setSort({ key: null, dir: null })
   }
 
   // delete flow: show confirm panel (bottom-right), then delete on confirm
@@ -125,6 +126,19 @@ export default function ManagePoliciesPage() {
     e?.preventDefault()
     showToast("Filter applied", "success")
   }
+
+  const columns: { key: keyof Policy | 'idx' | 'action'; label: string; sortable?: boolean; width?: string }[] = [
+    { key: 'idx', label: '#', width: 'w-12' },
+    { key: 'name', label: 'Policy Name', sortable: true },
+    { key: 'version', label: 'Ver', sortable: true, width: 'w-20' },
+    { key: 'category', label: 'Category', sortable: true },
+    { key: 'title', label: 'Title', sortable: true },
+    { key: 'expDate', label: 'Exp Date', sortable: true },
+    { key: 'creator', label: 'Creator', sortable: true },
+    { key: 'approver', label: 'Approver', sortable: true },
+    { key: 'status', label: 'Status', sortable: true, width: 'w-24' },
+    { key: 'action', label: 'Action', width: 'w-40' },
+  ]
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6">
@@ -148,8 +162,8 @@ export default function ManagePoliciesPage() {
             Add History
           </Link>
 
-          <button
-            type="button"
+          <Link
+            href="/manage-policies/report"
             className="inline-flex items-center gap-2 px-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-sm text-slate-700 dark:text-slate-200 shadow-sm hover:shadow focus:outline-none focus:ring-2 focus:ring-sky-400"
             aria-label="Report"
           >
@@ -158,7 +172,7 @@ export default function ManagePoliciesPage() {
               <path d="M21 21H3v-6a4 4 0 014-4h10a4 4 0 014 4v6z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
             Report
-          </button>
+          </Link>
 
           <Link
             href="/manage-policies/add"
@@ -220,32 +234,31 @@ export default function ManagePoliciesPage() {
         <table className="min-w-full table-fixed">
           <thead>
             <tr className="bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 text-sm">
-              <th className="p-3 text-left w-12">#</th>
-              <th className="p-3 text-left cursor-pointer select-none" onClick={() => handleSort("name")}>
-                Policy Name {sortKey === "name" && (sortDirection === "asc" ? '▲' : '▼')}
-              </th>
-              <th className="p-3 text-left w-20 cursor-pointer select-none" onClick={() => handleSort("version")}>
-                Ver {sortKey === "version" && (sortDirection === "asc" ? '▲' : '▼')}
-              </th>
-              <th className="p-3 text-left cursor-pointer select-none" onClick={() => handleSort("category")}>
-                Category {sortKey === "category" && (sortDirection === "asc" ? '▲' : '▼')}
-              </th>
-              <th className="p-3 text-left cursor-pointer select-none" onClick={() => handleSort("title")}>
-                Title {sortKey === "title" && (sortDirection === "asc" ? '▲' : '▼')}
-              </th>
-              <th className="p-3 text-left cursor-pointer select-none" onClick={() => handleSort("expDate")}>
-                Exp Date {sortKey === "expDate" && (sortDirection === "asc" ? '▲' : '▼')}
-              </th>
-              <th className="p-3 text-left cursor-pointer select-none" onClick={() => handleSort("creator")}>
-                Creator {sortKey === "creator" && (sortDirection === "asc" ? '▲' : '▼')}
-              </th>
-              <th className="p-3 text-left cursor-pointer select-none" onClick={() => handleSort("approver")}>
-                Approver {sortKey === "approver" && (sortDirection === "asc" ? '▲' : '▼')}
-              </th>
-              <th className="p-3 text-left w-24 cursor-pointer select-none" onClick={() => handleSort("status")}>
-                Status {sortKey === "status" && (sortDirection === "asc" ? '▲' : '▼')}
-              </th>
-              <th className="p-3 text-left w-40">Action</th>
+              {columns.map(col => {
+                const isSorted = sort.key === col.key && !!sort.dir
+                const arrow = isSorted ? (sort.dir === "asc" ? "▲" : "▼") : null
+                return (
+                  <th
+                    key={col.key}
+                    className={`p-3 text-left ${col.width || ''} ${col.sortable ? "cursor-pointer select-none" : ""}`}
+                    onClick={() => col.sortable && toggleSort(col.key as keyof Policy)}
+                    role={col.sortable ? "button" : undefined}
+                    tabIndex={col.sortable ? 0 : undefined}
+                    onKeyDown={(e) => {
+                      if (col.sortable && (e.key === "Enter" || e.key === " ")) toggleSort(col.key as keyof Policy)
+                    }}
+                  >
+                    {col.sortable ? (
+                      <button className="flex items-center justify-between gap-2 w-full cursor-pointer select-none">
+                        <span className="flex-1 text-left">{col.label}</span>
+                        <span className="text-xs text-slate-400">{arrow}</span>
+                      </button>
+                    ) : (
+                      col.label
+                    )}
+                  </th>
+                )
+              })}
             </tr>
           </thead>
 
@@ -253,7 +266,7 @@ export default function ManagePoliciesPage() {
             {sortedFiltered.map((p, idx) => (
               <tr key={p.id} className="border-t even:bg-white/2 dark:even:bg-slate-900/30">
                 <td className="p-3 text-sm">{idx + 1}</td>
-                <td className="p-3 text-sm text-sky-600">
+                <td className="p-3 text-sm ">
                   <Link href={`/manage-policies/view?id=${p.id}`} className="hover:underline">{p.name}</Link>
                 </td>
                 <td className="p-3 text-sm">{p.version}</td>

@@ -89,11 +89,37 @@ export default function UserGroupsSetupPage() {
           <thead>
             <tr className="bg-slate-50 text-slate-600 text-sm">
               <th className="p-3 text-left">#</th>
-              <th className="p-3 text-left cursor-pointer select-none" onClick={() => handleSort('name')}>
-                Group Name {sortKey === 'name' && (sortDirection === 'asc' ? '▲' : '▼')}
+              <th 
+                className="p-3 text-left cursor-pointer select-none" 
+                onClick={() => handleSort('name')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') handleSort('name')
+                }}
+              >
+                <button className="flex items-center justify-between gap-2 w-full cursor-pointer select-none">
+                  <span className="flex-1 text-left">Group Name</span>
+                  <span className="text-xs text-slate-400">
+                    {sortKey === 'name' ? (sortDirection === 'asc' ? '▲' : '▼') : null}
+                  </span>
+                </button>
               </th>
-              <th className="p-3 text-left cursor-pointer select-none" onClick={() => handleSort('values')}>
-                Group Values {sortKey === 'values' && (sortDirection === 'asc' ? '▲' : '▼')}
+              <th 
+                className="p-3 text-left cursor-pointer select-none" 
+                onClick={() => handleSort('values')}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') handleSort('values')
+                }}
+              >
+                <button className="flex items-center justify-between gap-2 w-full cursor-pointer select-none">
+                  <span className="flex-1 text-left">Group Values</span>
+                  <span className="text-xs text-slate-400">
+                    {sortKey === 'values' ? (sortDirection === 'asc' ? '▲' : '▼') : null}
+                  </span>
+                </button>
               </th>
               <th className="p-3 text-left">Action</th>
             </tr>

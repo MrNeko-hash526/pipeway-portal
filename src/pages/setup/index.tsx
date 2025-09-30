@@ -76,7 +76,7 @@ export default function SetupIndex() {
           </Link>
 
           <Link href="/setup/user-setup" className="block h-full">
-            <MetroCard title="Users" data={userSnapshot as any} updateInterval={7000} size="medium" />
+            <MetroCard title="User Setup" data={userSnapshot as any} updateInterval={7000} size="medium" />
           </Link>
 
           <Link href="/setup/user-groups-setup" className="block h-full">

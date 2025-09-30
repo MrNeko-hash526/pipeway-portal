@@ -244,7 +244,7 @@ export default function VendorSetupPage() {
             <tr className="bg-slate-50 text-slate-600 text-sm">
               {columns.map(col => {
                 const isSorted = sort.key === col.key && !!sort.dir
-                const arrow = isSorted ? (sort.dir === 'asc' ? '▲' : '▼') : ''
+                const arrow = isSorted ? (sort.dir === 'asc' ? '▲' : '▼') : null
                 return (
                   <th
                     key={col.key}
@@ -256,10 +256,14 @@ export default function VendorSetupPage() {
                       if (col.sortable && (e.key === 'Enter' || e.key === ' ')) toggleSort(col.key)
                     }}
                   >
-                    <div className="inline-flex items-center gap-2">
-                      <span>{col.label}</span>
-                      {col.sortable && <span className="text-xs text-slate-400">{arrow}</span>}
-                    </div>
+                    {col.sortable ? (
+                      <button className="flex items-center justify-between gap-2 w-full cursor-pointer select-none">
+                        <span className="flex-1 text-left">{col.label}</span>
+                        <span className="text-xs text-slate-400">{arrow}</span>
+                      </button>
+                    ) : (
+                      col.label
+                    )}
                   </th>
                 )
               })}

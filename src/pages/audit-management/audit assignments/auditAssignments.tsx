@@ -123,13 +123,26 @@ export default function AssignmentsListPage() {
             <tr>
               {columns.map(col => {
                 const isSorted = sort.key === col.key && !!sort.dir
-                const arrow = isSorted ? (sort.dir === "asc" ? "▲" : "▼") : ""
+                const arrow = isSorted ? (sort.dir === "asc" ? "▲" : "▼") : null
                 return (
-                  <th key={col.key} className={`p-3 text-left border-b border-border ${col.sortable ? "cursor-pointer select-none" : ""}`} onClick={() => col.sortable && toggleSort(col.key)}>
-                    <div className="inline-flex items-center gap-2">
-                      <span>{col.label}</span>
-                      {col.sortable && <span className="text-xs text-slate-400">{arrow}</span>}
-                    </div>
+                  <th 
+                    key={col.key} 
+                    className={`p-3 text-left border-b border-border ${col.sortable ? "cursor-pointer select-none" : ""}`} 
+                    onClick={() => col.sortable && toggleSort(col.key)}
+                    role={col.sortable ? "button" : undefined}
+                    tabIndex={col.sortable ? 0 : undefined}
+                    onKeyDown={(e) => {
+                      if (col.sortable && (e.key === "Enter" || e.key === " ")) toggleSort(col.key)
+                    }}
+                  >
+                    {col.sortable ? (
+                      <button className="flex items-center justify-between gap-2 w-full cursor-pointer select-none">
+                        <span className="flex-1 text-left">{col.label}</span>
+                        <span className="text-xs text-slate-400">{arrow}</span>
+                      </button>
+                    ) : (
+                      col.label
+                    )}
                   </th>
                 )
               })}

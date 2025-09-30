@@ -1,10 +1,22 @@
 import React, { useEffect, useState, Suspense } from "react"
+import CommandNavigation from "@/components/command-navigation"
 
-// Lazy load ALL components
+// ================================
+// DASHBOARD COMPONENTS
+// ================================
 const Dashboard = React.lazy(() => import("./dashboard/Dashboard"))
+
+// ================================
+// MANAGE POLICIES COMPONENTS
+// ================================
 const ManagePolicies = React.lazy(() => import("./manage-polocies/index"))
 const AddPolicyHistoryPage = React.lazy(() => import("./manage-polocies/Histroy"))
 const ManagePoliciesAdd = React.lazy(() => import("./manage-polocies/add"))
+const ManagePoliciesReport = React.lazy(() => import("./manage-polocies/report"))
+
+// ================================
+// AUDIT MANAGEMENT COMPONENTS
+// ================================
 const QuestionsSetupPage = React.lazy(() => import("./audit-management/questions setup/questionsSetup"))
 const AddQuestionsPage = React.lazy(() => import("./audit-management/questions setup/addQuestions"))
 const UploadQuestionsPage = React.lazy(() => import("./audit-management/questions setup/uploadQuestions"))
@@ -16,18 +28,30 @@ const RespondToVendorResponsePage = React.lazy(() => import("./audit-management/
 const CreateAuditSummaryPage = React.lazy(() => import("./audit-management/create audit summary/createAuditSummary"))
 const CreateReportPage = React.lazy(() => import("./audit-management/create audit summary/createreport"))
 const AuditManagement = React.lazy(() => import("./audit-management/audit-management"))
+
+// ================================
+// LICENCE AND CERTIFICATES COMPONENTS
+// ================================
 const LicenceAndCertificates = React.lazy(() => import("./licence-and-certificates/index"))
+const AddCertificatePage = React.lazy(() => import("./licence-and-certificates/add"))
+
+// ================================
+// TRAINING AND TEST COMPONENTS
+// ================================
 const TrainingAndTestManagement = React.lazy(() => import("./training-and-test/index"))
 const TrainingAndSop = React.lazy(() => import("./training-and-test/training-and-sop/index"))
-const QuestionBankSetupPage = React.lazy(() => import("./training-and-test/question-bank-setup/index"))
-const AddTrainingPage = React.lazy(() => import("./training-and-test/question-bank-setup/add"))
-const QuestioSetupPage = React.lazy(() => import("./training-and-test/question-setup/index"))
-const CreateQuestionBankPage = React.lazy(() => import("./training-and-test/question-setup/create"))  
+const AddTrainingPage = React.lazy(() => import("./training-and-test/training-and-sop/add"))
 const TestListPage = React.lazy(() => import("./training-and-test/tests-setup/index"))
 const TestParametersPage = React.lazy(() => import("./training-and-test/tests-setup/createtestparameter"))
 const TakeTestPage = React.lazy(() => import("./training-and-test/view-tests-setup/index"))
-
-// Setup pages
+const TrainingReportPage = React.lazy(() => import("./training-and-test/training-and-sop/reportquestion"))
+const AddQuestionPage = React.lazy(() => import("./training-and-test/question-setup/add"))
+const QuestionBankSetup = React.lazy(() => import("./training-and-test/question-bank-setup/index"))
+const AddQuestionBankPage = React.lazy(() => import("./training-and-test/question-bank-setup/add"))
+const QuestionSetup = React.lazy(() => import("./training-and-test/question-setup/index"))
+// ================================
+// SETUP COMPONENTS
+// ================================
 const SetupIndex = React.lazy(() => import("./setup/index"))
 const VendorSetup = React.lazy(() => import("./setup/vendor-setup/index"))
 const AddOrganizationPage = React.lazy(() => import("./setup/vendor-setup/add"))
@@ -37,9 +61,6 @@ const UserGroupsSetup = React.lazy(() => import("./setup/user-groups-setup/index
 const AddGroupPage = React.lazy(() => import("./setup/user-groups-setup/add"))
 const RiskManagement = React.lazy(() => import("./setup/risk-management/RiskManagement"))
 const StandardsAndCitationManagement = React.lazy(() => import("./setup/standards-and-citation-management/index"))
-const AddCertificatePage = React.lazy(() => import("./licence-and-certificates/add"))
-const QuestionSetListPage = React.lazy(() => import("./training-and-test/question-setup/addquestion"))
-const CreateQuestionSetPage = React.lazy(() => import("./training-and-test/question-setup/createquestionset"))
 
 // Enhanced loading component with better UX
 const LoadingFallback = () => (
@@ -64,11 +85,15 @@ const S = (el: React.ReactElement) => (
 )
 
 const ROUTES: { [path: string]: React.ReactElement } = {
-  // Dashboard routes
+  // ================================
+  // DASHBOARD ROUTES
+  // ================================
   "/": S(<Dashboard />),
   "/dashboard": S(<Dashboard />),
 
-  // Setup area routes
+  // ================================
+  // SETUP AREA ROUTES
+  // ================================
   "/setup": S(<SetupIndex />),
   "/setup/vendor-setup": S(<VendorSetup />),
   "/setup/vendor-setup/add": S(<AddOrganizationPage />),
@@ -82,7 +107,9 @@ const ROUTES: { [path: string]: React.ReactElement } = {
   "/setup/risk-management": S(<RiskManagement />),
   "/setup/standards-and-citation-management": S(<StandardsAndCitationManagement />),
 
-  // Audit management routes
+  // ================================
+  // AUDIT MANAGEMENT ROUTES
+  // ================================
   "/audit-management": S(<AuditManagement />),
   "/audit-management/questions-setup": S(<QuestionsSetupPage />),
   "/audit-management/questions-setup/add": S(<AddQuestionsPage />),
@@ -95,25 +122,32 @@ const ROUTES: { [path: string]: React.ReactElement } = {
   "/audit-management/create-summary": S(<CreateAuditSummaryPage />),
   "/audit-management/create-summary/create-report": S(<CreateReportPage />),
 
-  // Training and test routes
+  // ================================
+  // TRAINING AND TEST ROUTES
+  // ================================
   "/training-and-test": S(<TrainingAndTestManagement />),
   "/training-and-test/training-sop": S(<TrainingAndSop />),
-  "/training-and-test/question-bank-setup": S(<QuestionBankSetupPage />),
-  "/training-and-test/question-bank-setup/add": S(<AddTrainingPage />),
-  "/training-and-test/question-setup": S(<QuestioSetupPage />),
-  "/training-and-test/question-setup/create": S(<CreateQuestionBankPage />),
-  "/training-and-test/question-setup/add-list": S(<QuestionSetListPage />),
-  "/training-and-test/question-setup/createquestionset": S(<CreateQuestionSetPage />),
+  "/training-and-test/training-sop/add": S(<AddTrainingPage />),
   "/training-and-test/tests-setup": S(<TestListPage />),
   "/training-and-test/tests-setup/create-test-parameter": S(<TestParametersPage />),
   "/training-and-test/view-tests-setup": S(<TakeTestPage />),
+  "/training-and-test/training-sop/report": S(<TrainingReportPage />),
+  "/training-and-test/question-bank-setup": S(<QuestionBankSetup />),
+  "/training-and-test/question-bank-setup/add": S(<AddQuestionBankPage />),
+  "/training-and-test/question-setup/add": S(<AddQuestionPage />),
+  "/training-and-test/question-setup": S(<QuestionSetup />),
 
-  // Manage policies routes
+  // ================================
+  // MANAGE POLICIES ROUTES
+  // ================================
   "/manage-policies": S(<ManagePolicies />),
   "/manage-policies/add": S(<ManagePoliciesAdd />),
   "/manage-policies/Policy-History": S(<AddPolicyHistoryPage />),
+  "/manage-policies/report": S(<ManagePoliciesReport />),
 
-  // Licence and certificates routes
+  // ================================
+  // LICENCE AND CERTIFICATES ROUTES
+  // ================================
   "/licence-and-certificates": S(<LicenceAndCertificates />),
   "/licence-and-certificates/add": S(<AddCertificatePage />),
 }
