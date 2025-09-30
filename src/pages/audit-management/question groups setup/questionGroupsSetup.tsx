@@ -178,27 +178,36 @@ export default function QuestionGroupsSetupPage() {
           <thead className="bg-slate-50 dark:bg-[rgba(255,255,255,0.03)]">
             <tr>
               {[
-                { key: "id", label: "#" },
-                { key: "name", label: "Question Group Name" },
-                { key: "dateCreated", label: "Date Created" },
-                { key: "approver", label: "Approver" },
-                { key: "status", label: "Status" },
-                { key: "action", label: "Action" },
+                { key: "id", label: "#", sortable: false },
+                { key: "name", label: "Question Group Name", sortable: true },
+                { key: "dateCreated", label: "Date Created", sortable: true },
+                { key: "approver", label: "Approver", sortable: true },
+                { key: "status", label: "Status", sortable: true },
+                { key: "action", label: "Action", sortable: false },
               ].map((col) => {
                 const colKey = col.key as keyof Group | "action"
-                const isSorted = sort.key === colKey
-                const arrow = isSorted && sort.dir ? (sort.dir === "asc" ? "▲" : "▼") : ""
-                const sortable = colKey !== "action"
+                const isSorted = sort.key === colKey && !!sort.dir
+                const arrow = isSorted ? (sort.dir === "asc" ? "▲" : "▼") : null
+                
                 return (
                   <th
                     key={col.key}
-                    className={`p-3 text-left border-b border-border ${sortable ? "cursor-pointer select-none" : ""}`}
-                    onClick={() => sortable && toggleSort(colKey as keyof Group)}
+                    className={`p-3 text-left border-b border-border ${col.sortable ? "cursor-pointer select-none" : ""}`}
+                    onClick={() => col.sortable && toggleSort(colKey as keyof Group)}
+                    role={col.sortable ? "button" : undefined}
+                    tabIndex={col.sortable ? 0 : undefined}
+                    onKeyDown={(e) => {
+                      if (col.sortable && (e.key === "Enter" || e.key === " ")) toggleSort(colKey as keyof Group)
+                    }}
                   >
-                    <div className="inline-flex items-center gap-2">
-                      <span>{col.label}</span>
-                      {sortable && <span className="text-xs text-slate-400">{arrow}</span>}
-                    </div>
+                    {col.sortable ? (
+                      <button className="flex items-center justify-between gap-2 w-full cursor-pointer select-none">
+                        <span className="flex-1 text-left">{col.label}</span>
+                        <span className="text-xs text-slate-400">{arrow}</span>
+                      </button>
+                    ) : (
+                      col.label
+                    )}
                   </th>
                 )
               })}

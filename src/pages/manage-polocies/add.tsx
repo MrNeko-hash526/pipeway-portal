@@ -4,6 +4,8 @@ import React from "react"
 import Link from "@/components/link"
 import * as yup from "yup"
 import PolicyEditor from "@/components/toolbar"
+import DatePicker from "react-datepicker"
+import "react-datepicker/dist/react-datepicker.css"
 
 export default function ManagePoliciesAdd() {
   // start at chooser step so user first selects upload OR create
@@ -20,7 +22,7 @@ export default function ManagePoliciesAdd() {
     description: "",
     content: "",
     reviewerIsOwner: false,
-    expDate: "",
+    expDate: null as Date | null,
     status: "Draft",
   })
   const [toast, setToast] = React.useState<{ text: string; type?: "success" | "error" } | null>(null)
@@ -57,15 +59,7 @@ export default function ManagePoliciesAdd() {
       approver: yup.string().strict(true).nullable().notRequired(),
       description: yup.string().strict(true).max(250, "Description must be 250 characters or less").nullable().notRequired(),
       content: yup.string().strict(true).nullable().notRequired(),
-      expDate: yup
-        .string()
-        .strict(true)
-        .nullable()
-        .notRequired()
-        .test("date-format", "Exp Date must be YYYY-MM-DD", (val) => {
-          if (!val) return true
-          return /^\d{4}-\d{2}-\d{2}$/.test(val)
-        }),
+      expDate: yup.date().nullable().notRequired(),
       status: yup.mixed().strict(true).oneOf(["Draft", "Published", "Archived"], "Invalid status").required(),
     })
 
@@ -109,11 +103,14 @@ export default function ManagePoliciesAdd() {
 
   const handleCreateSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
-    // use policy.content (kept in state by PolicyEditor)
-    const submission = { ...policy }
+    // Convert date to American format for submission
+    const submission = {
+      ...policy,
+      expDate: policy.expDate ? policy.expDate.toLocaleDateString('en-US') : null
+    }
 
     try {
-      await createSchema.validate(submission, { abortEarly: false, strict: true })
+      await createSchema.validate(policy, { abortEarly: false, strict: true })
     } catch (err) {
       if (err instanceof yup.ValidationError) {
         // join errors for user feedback
@@ -341,11 +338,16 @@ export default function ManagePoliciesAdd() {
                 <aside className="lg:col-span-4 space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Exp Date</label>
-                    <input
-                      type="date"
-                      value={policy.expDate}
-                      onChange={(e) => handleChange("expDate", e.target.value)}
+                    <DatePicker
+                      selected={policy.expDate}
+                      onChange={(date) => handleChange("expDate", date)}
+                      dateFormat="MM/dd/yyyy"
+                      placeholderText="MM/DD/YYYY"
                       className="mt-1 block w-full border rounded px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100"
+                      calendarClassName="bg-white dark:bg-slate-800 border border-gray-300 dark:border-gray-600 rounded shadow-lg"
+                      dayClassName={(date) => 
+                        "text-gray-900 dark:text-gray-100 hover:bg-blue-500 hover:text-white cursor-pointer"
+                      }
                     />
                   </div>
 
@@ -420,6 +422,39 @@ export default function ManagePoliciesAdd() {
           </div>
         </div>
       )}
+
+      <style dangerouslySetInnerHTML={{ __html: `
+        .react-datepicker-wrapper {
+          width: 100%;
+        }
+        .react-datepicker__input-container input {
+          width: 100%;
+        }
+        .react-datepicker {
+          font-family: inherit;
+        }
+        .react-datepicker__header {
+          background-color: #f8fafc;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .dark .react-datepicker__header {
+          background-color: #374151;
+          border-bottom: 1px solid #4b5563;
+          color: #e5e7eb;
+        }
+        .react-datepicker__day--selected {
+          background-color: #3b82f6 !important;
+          color: white !important;
+        }
+        .react-datepicker__day--today {
+          background-color: #dbeafe;
+          color: #1d4ed8;
+        }
+        .dark .react-datepicker__day--today {
+          background-color: #1e3a8a;
+          color: #93c5fd;
+        }
+      ` }} />
     </div>
   )
 }

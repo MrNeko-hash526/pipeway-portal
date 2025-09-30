@@ -29,15 +29,18 @@ export default function LicenceAndCertificates() {
   const [query, setQuery] = useState("")
   const [filterActive, setFilterActive] = useState<"All" | "Active" | "Inactive">("All")
   const [approvalFilter, setApprovalFilter] = useState<"All" | Row["approval"]>("All")
-  const [sortBy, setSortBy] = useState<keyof Row | null>("id")
-  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+  
+  // Updated sorting state structure
+  const [sort, setSort] = useState<{ key: keyof Row | null; dir: "asc" | "desc" | null }>({
+    key: null,
+    dir: null,
+  })
 
+  // Updated toggle function with three-state cycle
   const toggleSort = (key: keyof Row) => {
-    if (sortBy === key) setSortDir(d => (d === "asc" ? "desc" : "asc"))
-    else {
-      setSortBy(key)
-      setSortDir("asc")
-    }
+    if (sort.key !== key) return setSort({ key, dir: "asc" })
+    if (sort.dir === "asc") setSort({ key, dir: "desc" })
+    else setSort({ key: null, dir: null })
   }
 
   const filtered = useMemo(() => {
@@ -53,24 +56,28 @@ export default function LicenceAndCertificates() {
       return true
     })
 
-    if (sortBy) {
+    // Updated sorting logic
+    if (sort.key && sort.dir) {
       rows = rows.slice().sort((a, b) => {
-        const av = a[sortBy]
-        const bv = b[sortBy]
-        if (sortBy === "expDate") {
+        const key = sort.key as keyof Row
+        const av = a[key]
+        const bv = b[key]
+        
+        if (key === "expDate") {
           const da = new Date(a.expDate).getTime()
           const db = new Date(b.expDate).getTime()
-          return sortDir === "asc" ? da - db : db - da
+          return sort.dir === "asc" ? da - db : db - da
         }
+        
         const sa = String(av).toLowerCase()
         const sb = String(bv).toLowerCase()
-        if (sa < sb) return sortDir === "asc" ? -1 : 1
-        if (sa > sb) return sortDir === "asc" ? 1 : -1
+        if (sa < sb) return sort.dir === "asc" ? -1 : 1
+        if (sa > sb) return sort.dir === "asc" ? 1 : -1
         return 0
       })
     }
     return rows
-  }, [data, query, filterActive, approvalFilter, sortBy, sortDir])
+  }, [data, query, filterActive, approvalFilter, sort])
 
   const handleApprove = (id: number) => {
     setData(prev =>
@@ -105,6 +112,18 @@ export default function LicenceAndCertificates() {
       duration: Infinity,
     })
   }
+
+  // Column configuration
+  const columns: { key: keyof Row | 'action'; label: string; sortable?: boolean }[] = [
+    { key: 'id', label: '#' },
+    { key: 'company', label: 'Certificate / Insurance for', sortable: true },
+    { key: 'fileName', label: 'File Name', sortable: true },
+    { key: 'type', label: 'Certificate Type', sortable: true },
+    { key: 'expDate', label: 'Exp Date', sortable: true },
+    { key: 'frequency', label: 'Frequency', sortable: true },
+    { key: 'status', label: 'Status', sortable: true },
+    { key: 'action', label: 'Action' },
+  ]
 
   return (
     <>
@@ -159,24 +178,31 @@ export default function LicenceAndCertificates() {
           <table className="min-w-full text-left text-sm">
             <thead>
               <tr style={{ backgroundColor: "var(--background)" }} className="text-muted-foreground">
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort("id")}>
-                  # {sortBy === "id" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                </th>
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort("company")}>
-                  Certificate / Insurance for {sortBy === "company" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                </th>
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort("fileName")}>
-                  File Name {sortBy === "fileName" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                </th>
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort("type")}>
-                  Certificate Type {sortBy === "type" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                </th>
-                <th className="px-4 py-3 cursor-pointer" onClick={() => toggleSort("expDate")}>
-                  Exp Date {sortBy === "expDate" ? (sortDir === "asc" ? "▲" : "▼") : ""}
-                </th>
-                <th className="px-4 py-3">Frequency</th>
-                <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Action</th>
+                {columns.map(col => {
+                  const isSorted = sort.key === col.key && !!sort.dir
+                  const arrow = isSorted ? (sort.dir === "asc" ? "▲" : "▼") : null
+                  return (
+                    <th
+                      key={col.key}
+                      className={`px-4 py-3 ${col.sortable ? "cursor-pointer select-none" : ""}`}
+                      onClick={() => col.sortable && toggleSort(col.key as keyof Row)}
+                      role={col.sortable ? "button" : undefined}
+                      tabIndex={col.sortable ? 0 : undefined}
+                      onKeyDown={(e) => {
+                        if (col.sortable && (e.key === "Enter" || e.key === " ")) toggleSort(col.key as keyof Row)
+                      }}
+                    >
+                      {col.sortable ? (
+                        <button className="flex items-center justify-between gap-2 w-full cursor-pointer select-none">
+                          <span className="flex-1 text-left">{col.label}</span>
+                          <span className="text-xs text-slate-400">{arrow}</span>
+                        </button>
+                      ) : (
+                        col.label
+                      )}
+                    </th>
+                  )
+                })}
               </tr>
             </thead>
 
@@ -199,7 +225,7 @@ export default function LicenceAndCertificates() {
                       <span className="text-slate-800 dark:text-slate-100">{r.fileName}</span>
                     </td>
                     <td className="px-4 py-3 align-top text-slate-700 dark:text-slate-200">{r.type}</td>
-                    <td className="px-4 py-3 align-top text-slate-700 dark:text-slate-200">{new Date(r.expDate).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 align-top text-slate-700 dark:text-slate-200">{new Date(r.expDate).toLocaleDateString('en-US')}</td>
                     <td className="px-4 py-3 align-top text-slate-700 dark:text-slate-200">{r.frequency}</td>
                     <td className="px-4 py-3 align-top">
                       {r.status === "Valid" ? (

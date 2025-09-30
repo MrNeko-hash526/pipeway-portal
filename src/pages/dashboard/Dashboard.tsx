@@ -172,25 +172,41 @@ export default function Dashboard() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
-                {/* hoverable wrappers: light = white bg + black text on hover; dark = dark-gray bg + light text on hover */}
-                <div className="rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6]">
-                    <MetroCard
-                        title={<div className="flex items-center"><IconPie /> <span>Audit</span></div>}
-                        data={auditSummary as any}
-                        updateInterval={8000}
-                        size="medium"
-                    />
-                </div>
+                {/* Clickable Audit Card */}
+                <Link href="/audit-management" className="block rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6] group cursor-pointer">
+                    <div className="relative">
+                        <MetroCard
+                            title={<div className="flex items-center"><IconPie /> <span>Audit</span></div>}
+                            data={auditSummary as any}
+                            updateInterval={8000}
+                            size="medium"
+                        />
+                        <div className="absolute inset-0 bg-slate-600/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                            <div className="bg-white dark:bg-slate-800 px-3 py-1 rounded-md shadow-lg text-sm font-medium">
+                                View Audit Management
+                            </div>
+                        </div>
+                    </div>
+                </Link>
 
-                <div className="rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6]">
-                    <MetroCard
-                        title={<div className="flex items-center"><IconBars /> <span>Certificate</span></div>}
-                        data={certificateSummary as any}
-                        updateInterval={8000}
-                        size="medium"
-                    />
-                </div>
+                {/* Clickable Certificate Card */}
+                <Link href="/licence-and-certificates" className="block rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6] group cursor-pointer">
+                    <div className="relative">
+                        <MetroCard
+                            title={<div className="flex items-center"><IconBars /> <span>Certificate</span></div>}
+                            data={certificateSummary as any}
+                            updateInterval={8000}
+                            size="medium"
+                        />
+                        <div className="absolute inset-0 bg-cyan-600/10 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+                            <div className="bg-white dark:bg-slate-800 px-3 py-1 rounded-md shadow-lg text-sm font-medium">
+                                View Certificates
+                            </div>
+                        </div>
+                    </div>
+                </Link>
 
+                {/* Non-clickable Notifications Card */}
                 <div className="rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6]">
                     <MetroCard
                         title={<div className="flex items-center"><IconList /> <span>Notifications</span></div>}
@@ -200,6 +216,7 @@ export default function Dashboard() {
                     />
                 </div>
 
+                {/* Non-clickable Setup Highlights Card */}
                 <div className="rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6]">
                     <MetroCard
                         title={<div className="flex items-center"><IconBars /> <span>Setup Highlights</span></div>}
@@ -296,87 +313,6 @@ export default function Dashboard() {
                 </Card>
                 </div>
              </div>
-
-            {/* Monthly Trend + Cross-Page Highlights */}
-            <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* <div className="rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6]"> <Card>
-                     <CardHeader>
-                         <CardTitle>Monthly Trend</CardTitle>
-                     </CardHeader>
-                     <CardContent>
-                        <ResponsiveContainer width="100%" height={160}>
-                            <BarChart data={monthlyTrend} margin={{ left: 0, right: 20 }}>
-                                <CartesianGrid strokeDasharray="3 3" />
-                                <XAxis dataKey="month" />
-                                <YAxis />
-                                <Tooltip />
-                                <Bar dataKey="value" fill="#6666ff" />
-                            </BarChart>
-                        </ResponsiveContainer>
-
-                        <div className="mt-3 flex items-center justify-between">
-                            <div>
-                                <div className="text-lg font-semibold">+12.4%</div>
-                                <div className="text-sm text-slate-500">MoM change</div>
-                            </div>
-                            <div className="flex gap-3">
-                                <Badge>Response Rate: 78%</Badge>
-                                <Badge variant="secondary">Avg. Time: 2.3d</Badge>
-                            </div>
-                        </div>
-                     </CardContent>
-                </Card> */}
-                {/* <div className="rounded transition-colors hover:bg-white hover:text-black dark:hover:bg-[rgb(33,33,36)] dark:hover:text-[#e6e6e6]"> <Card>
-                     <CardHeader>
-                         <CardTitle>Cross-Page Highlights</CardTitle>
-                     </CardHeader>
-                     <CardContent>
-                        <div className="space-y-3">
-                            <div className="text-sm text-slate-600">Important messages from other setup pages</div>
-                            <ul className="list-none space-y-2 mt-3">
-                                {(() => {
-                                    const msgs = []
-                                    if ((auditSummary.find(x => x.label === "Open")?.value ?? 0) > 0) {
-                                        msgs.push({ type: "audit", text: `${auditSummary.find(x => x.label === "Open")?.value} open audit(s) need attention`, href: "/audit" })
-                                    }
-                                    if ((certificateSummary.find(x => x.label === "Renewal Need")?.value ?? 0) > 0) {
-                                        msgs.push({ type: "cert", text: `${certificateSummary.find(x => x.label === "Renewal Need")?.value} certificates need renewal`, href: "/certificates" })
-                                    }
-                                    const notifCount = notificationsSummary.reduce((s, n) => s + n.value, 0)
-                                    if (notifCount > 0) {
-                                        msgs.push({ type: "notif", text: `${notifCount} new notifications`, href: "/notifications" })
-                                    }
-                                    return msgs.length === 0 ? <li className="text-sm text-slate-500">No outstanding items.</li> : msgs.map((m, i) => (
-                                        <li key={i} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800 p-3 rounded">
-                                            <div>
-                                                <div className="text-sm">{m.text}</div>
-                                                <div className="text-xs text-slate-500 mt-1">{m.type.toUpperCase()}</div>
-                                            </div>
-                                            <div>
-                                                <Link href={m.href} className="text-sm text-sky-600">View</Link>
-                                            </div>
-                                        </li>
-                                    ))
-                                })()}
-                            </ul>
-                            <div className="mt-4 grid grid-cols-3 gap-3">
-                                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded text-center">
-                                    <div className="text-sm text-slate-500">Avg. Audit Score</div>
-                                    <div className="text-xl font-semibold">87%</div>
-                                </div>
-                                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded text-center">
-                                    <div className="text-sm text-slate-500">Certificates</div>
-                                    <div className="text-xl font-semibold">142</div>
-                                </div>
-                                <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded text-center">
-                                    <div className="text-sm text-slate-500">Open Findings</div>
-                                    <div className="text-xl font-semibold text-rose-600">8</div>
-                                </div>
-                            </div>
-                        </div>
-                     </CardContent>
-                </Card> */}
-            </div>
         </div>
     )
 }

@@ -9,7 +9,7 @@ const schema = yup.object({
   questionSetName: yup.string().trim().required("Question Set Name is required"),
 })
 
-export default function CreateQuestionSetPage() {
+export default function AddQuestionSetPage() {
   const [questionSetName, setQuestionSetName] = React.useState("")
   const [errors, setErrors] = React.useState<{ questionSetName?: string }>({})
 
