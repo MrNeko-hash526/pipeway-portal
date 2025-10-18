@@ -4,6 +4,10 @@ import React from "react"
 import Link from "@/components/link"
 import * as yup from "yup"
 
+const API_BASE = typeof window !== 'undefined' 
+  ? (window as any).__ENV__?.NEXT_PUBLIC_API_BASE || 'http://localhost:3000'
+  : 'http://localhost:3000'
+
 type FormState = {
   organizationName: string
   organizationCode: string
@@ -30,6 +34,13 @@ type FormState = {
   category: string
   status: "Active" | "Pending" | "Inactive"
   attachments: File[]
+}
+
+type Toast = {
+  id: string
+  type: "success" | "error"
+  title: string
+  message: string
 }
 
 const FILE_MAX_BYTES = 5 * 1024 * 1024 // 5MB
@@ -135,8 +146,18 @@ export default function AddOrganizationPage() {
 
   const [errors, setErrors] = React.useState<Record<string, string>>({})
   const [submitting, setSubmitting] = React.useState(false)
+  const [toasts, setToasts] = React.useState<Toast[]>([])
 
-  // helper to render red warning text under fields (supports light/dark)
+  const addToast = (toast: Omit<Toast, "id">) => {
+    const id = `${Date.now()}-${Math.random()}`
+    setToasts((prev) => [...prev, { ...toast, id }])
+    setTimeout(() => removeToast(id), 5000)
+  }
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }
+
   const renderWarning = (key: keyof FormState) =>
     errors[key] ? <p className="text-sm text-rose-600 dark:text-rose-400 mt-1">{errors[key]}</p> : null
 
@@ -209,12 +230,54 @@ export default function AddOrganizationPage() {
     }
     setSubmitting(true)
     try {
-      // placeholder: implement API call
-      await new Promise((r) => setTimeout(r, 600))
-      alert("Organization added (demo).")
-      window.location.href = "/setup/vendor-setup"
-    } catch {
-      alert("Failed to save — try again.")
+      const fd = new FormData()
+
+      const sendKeys: Array<keyof FormState> = [
+        "organizationName","organizationCode","type","description","riskLevel",
+        "address1","address2","address3","country","countryOther","state","stateOther",
+        "city","zip","website","supportNumber","contactFirst","contactLast",
+        "phoneCountryCode","workPhone","email","category","status"
+      ]
+
+      for (const k of sendKeys) {
+        const v = form[k] as string | undefined
+        if (v === undefined || v === null || v === '') continue
+        fd.append(k, v)
+      }
+
+      for (const f of form.attachments || []) {
+        fd.append("attachments", f, f.name)
+      }
+
+      const url = API_BASE.replace(/\/$/, '') + "/api/setup/vendor"
+      const res = await fetch(url, {
+        method: "POST",
+        body: fd,
+      })
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        const msg = body.error || (body.errors ? JSON.stringify(body.errors) : `HTTP ${res.status}`)
+        throw new Error(msg)
+      }
+
+      await res.json()
+      addToast({
+        type: "success",
+        title: "Success!",
+        message: "Organization added successfully."
+      })
+      
+      setTimeout(() => {
+        window.location.href = "/setup/vendor-setup"
+      }, 1500)
+    } catch (err: any) {
+      console.error("save error", err)
+      addToast({
+        type: "error",
+        title: "Failed to save",
+        message: err?.message || "An unknown error occurred"
+      })
     } finally {
       setSubmitting(false)
     }
@@ -222,7 +285,6 @@ export default function AddOrganizationPage() {
 
   const inputBase =
     "w-full rounded px-2 py-1.5 text-sm border focus:outline-none focus:ring-2 focus:ring-sky-400 transition-colors"
-  // support both light and dark — use neutral light classes with dark: variants
   const inputTheme =
     "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-500"
   const labelClass = "text-xs font-medium text-slate-700 dark:text-slate-300"
@@ -612,13 +674,58 @@ export default function AddOrganizationPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="px-4 py-2 border rounded bg-sky-600 hover:bg-sky-700 text-white text-sm"
+              className="px-4 py-2 border rounded bg-sky-600 hover:bg-sky-700 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {submitting ? "Saving..." : "Add Organization"}
             </button>
           </div>
         </div>
       </form>
+
+      {/* Toast notifications */}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-3 max-w-md">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={`p-4 rounded-lg shadow-lg border ${
+                toast.type === "success"
+                  ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
+                  : "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <h4
+                    className={`font-semibold text-sm ${
+                      toast.type === "success"
+                        ? "text-emerald-900 dark:text-emerald-100"
+                        : "text-rose-900 dark:text-rose-100"
+                    }`}
+                  >
+                    {toast.title}
+                  </h4>
+                  <p
+                    className={`text-sm mt-1 ${
+                      toast.type === "success"
+                        ? "text-emerald-700 dark:text-emerald-200"
+                        : "text-rose-700 dark:text-rose-200"
+                    }`}
+                  >
+                    {toast.message}
+                  </p>
+                </div>
+                <button
+                  onClick={() => removeToast(toast.id)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
