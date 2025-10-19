@@ -39,7 +39,10 @@ export default function UserGroupsSetupPage() {
 
   // toast system
   const [toasts, setToasts] = React.useState<Toast[]>([])
-  const addToast = (t: Omit<Toast, 'id'>) => setToasts(prev => [...prev, { id: String(Date.now()) + Math.random(), ...t }])
+  const addToast = (t: Omit<Toast, 'id'> & { id?: string }) => {
+    const { id, ...rest } = t as any
+    setToasts(prev => [...prev, { id: id ?? (String(Date.now()) + Math.random()), ...rest }])
+  }
   const removeToast = (id: string) => setToasts(prev => prev.filter(x => x.id !== id))
 
   // Load groups from backend
