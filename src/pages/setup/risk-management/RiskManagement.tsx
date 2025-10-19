@@ -2,8 +2,13 @@ import React, { useEffect, useMemo, useState } from "react"
 import { Pencil, Trash2, PlusCircle, XCircle, DownloadCloud } from "lucide-react"
 import * as yup from "yup"
 
+const API_BASE = typeof window !== 'undefined' 
+  ? (window as any).__ENV__?.NEXT_PUBLIC_API_BASE || 'http://localhost:3000'
+  : 'http://localhost:3000'
+
 type Row = {
   id: string
+  criteria_id: number
   criteria: string
   option: string
   level: number
@@ -11,77 +16,64 @@ type Row = {
   active: boolean
 }
 
+type Criteria = {
+  id: number
+  name: string
+  status: string
+}
+
 type LevelOption = {
+  id: number
   value: number
   label: string
   range?: { min: number; max: number }
 }
 
-const SAMPLE: Row[] = [
-  { id: "1", criteria: "Total Value of Exposure/Risk (volume of records exposed)", option: "Greater than $5,000,000", level: 3, exception: "Vendor Compliance Committee", active: true },
-  { id: "2", criteria: "Total Value of Exposure/Risk (volume of records exposed)", option: "$500,001-$5,000,000", level: 2, exception: "President", active: true },
-  { id: "3", criteria: "Total Value of Exposure/Risk (volume of records exposed)", option: "Less than $500,000", level: 1, exception: "Director of Operations", active: true },
-  { id: "4", criteria: "Physical Safety of Employees/Guests & Vendors", option: "Risk High/Injury Potential High", level: 3, exception: "Oversight, Governance and Audit Committee", active: true },
-]
-
-const rrmSchema = yup.object().strict(true).shape({
-  criteria: yup.string().required("Criteria is required").min(3, "Criteria is too short"),
-  option: yup.string().required("RRM Option is required"),
-  level: yup.number().min(1, "Invalid level").max(99, "Invalid level").required("RRM Level is required"),
-  exception: yup.string().required("Exception By is required"),
-})
-
 type Toast = {
   id: string
   message: string
-  type?: "info" | "confirm"
+  type?: "info" | "confirm" | "success" | "error"
   targetId?: string
 }
 
+const rrmSchema = yup.object().strict(true).shape({
+  criteria_id: yup.number().min(1, "Criteria is required").required("Criteria is required"),
+  rrm_option: yup.string().required("RRM Option is required"),
+  rrm_level: yup.number().min(1, "Invalid level").max(99, "Invalid level").required("RRM Level is required"),
+  rrm_exception: yup.string().required("Exception By is required"),
+})
+
 export default function RiskManagement() {
-  const [rows, setRows] = useState<Row[]>(SAMPLE)
+  const [rows, setRows] = useState<Row[]>([])
+  const [loading, setLoading] = useState(true)
 
   // form
-  const [criteria, setCriteria] = useState<string>("")
+  const [criteriaId, setCriteriaId] = useState<number>(0)
   const [option, setOption] = useState<string>("")
   const [level, setLevel] = useState<number>(1)
   const [exceptionBy, setExceptionBy] = useState<string>("")
   const [showForm, setShowForm] = useState<boolean>(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formErrors, setFormErrors] = useState<Record<string, string>>({})
+  const [saving, setSaving] = useState(false)
 
   // search / filter
   const [search, setSearch] = useState<string>("")
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
 
-  // criteria / level option stores (can add)
-  const [criteriaOptions, setCriteriaOptions] = useState<string[]>(() => Array.from(new Set(SAMPLE.map((s) => s.criteria))))
+  // criteria / level option stores
+  const [criteriaOptions, setCriteriaOptions] = useState<Criteria[]>([])
   const [showAddCriteria, setShowAddCriteria] = useState(false)
   const [newCriteria, setNewCriteria] = useState("")
+  const [criteriaLoading, setCriteriaLoading] = useState(false)
 
-  // build initial level options from SAMPLE (simulates DB-provided options)
-  const defaultLevelLabel = (v: number) => {
-    if (v === 1) return `${v} (Low)`
-    if (v === 2) return `${v} (Medium)`
-    if (v === 3) return `${v} (High)`
-    return `${v} (Level)`
-  }
-  const initialLevels = Array.from(new Set(SAMPLE.map((s) => s.level))).sort((a, b) => a - b)
-  const [levelOptions, setLevelOptions] = useState<LevelOption[]>(
-    () => {
-      // ensure we have at least 1..3 in options (common defaults), plus any sample levels
-      const base = [1, 2, 3]
-      const all = Array.from(new Set([...initialLevels, ...base])).sort((a, b) => a - b)
-      return all.map((v) => ({ value: v, label: defaultLevelLabel(v) }))
-    }
-  )
-
-  // show add-level and "ranges" inputs (Low/Medium/High)
+  const [levelOptions, setLevelOptions] = useState<LevelOption[]>([])
   const [showAddLevel, setShowAddLevel] = useState(false)
   const [newLevelValue, setNewLevelValue] = useState<number | "">("")
   const [newLevelLabel, setNewLevelLabel] = useState("")
+  const [levelsLoading, setLevelsLoading] = useState(false)
 
-  // range inputs for Low/Medium/High (prefill from DB/sample)
+  // range inputs for Low/Medium/High
   const [rangeInputs, setRangeInputs] = useState({
     lowMin: 0,
     lowMax: 6,
@@ -116,6 +108,108 @@ export default function RiskManagement() {
   }
   const removeToast = (id: string) => setToasts((s) => s.filter((t) => t.id !== id))
 
+  // Load data from backend
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      await Promise.all([
+        loadRiskManagement(),
+        loadCriteria(),
+        loadLevels()
+      ])
+      pushToast("Data loaded successfully", { type: "success" })
+    } catch (err) {
+      console.error('Failed to load data:', err)
+      pushToast("Failed to load data", { type: "error" })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const loadRiskManagement = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/setup/risk-management?limit=1000&status=Active`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      
+      console.log('Risk management response:', data) // Debug log
+      
+      // Fix: Check for data.data instead of data.rows
+      if (data.success && Array.isArray(data.data)) {
+        const mapped = data.data.map((item: any) => ({
+          id: String(item.id),
+          criteria_id: item.criteria_id,
+          criteria: item.criteria,
+          option: item.option,
+          level: item.level,
+          exception: item.exception,
+          active: item.status === 'Active'
+        }))
+        console.log('Mapped rows:', mapped) // Debug log
+        setRows(mapped)
+      } else {
+        console.warn('Unexpected response format:', data)
+        setRows([])
+      }
+    } catch (err) {
+      console.error('Failed to load risk management:', err)
+      throw err
+    }
+  }
+
+  const loadCriteria = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/setup/rrm-criteria?limit=1000&status=Active`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      
+      console.log('Criteria response:', data) // Debug log
+      
+      // Fix: Check for data.data instead of data.rows
+      if (data.success && Array.isArray(data.data)) {
+        setCriteriaOptions(data.data)
+      } else {
+        console.warn('Unexpected criteria response format:', data)
+        setCriteriaOptions([])
+      }
+    } catch (err) {
+      console.error('Failed to load criteria:', err)
+      throw err
+    }
+  }
+
+  const loadLevels = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/setup/rrm-levels?limit=1000&status=Active`)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      
+      console.log('Levels response:', data) // Debug log
+      
+      // Fix: Check for data.data instead of data.rows
+      if (data.success && Array.isArray(data.data)) {
+        const mapped = data.data.map((item: any) => ({
+          id: item.id,
+          value: item.level_value,
+          label: item.level_label,
+          range: item.range_min && item.range_max ? { min: item.range_min, max: item.range_max } : undefined
+        }))
+        console.log('Mapped levels:', mapped) // Debug log
+        setLevelOptions(mapped)
+      } else {
+        console.warn('Unexpected levels response format:', data)
+        setLevelOptions([])
+      }
+    } catch (err) {
+      console.error('Failed to load levels:', err)
+      throw err
+    }
+  }
+
   // filtering + sorting
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -145,7 +239,7 @@ export default function RiskManagement() {
   }, [filtered, sortBy, sortDir])
 
   function resetForm() {
-    setCriteria("")
+    setCriteriaId(0)
     setOption("")
     setLevel(1)
     setExceptionBy("")
@@ -155,21 +249,71 @@ export default function RiskManagement() {
 
   async function onAddOrSave(e?: React.FormEvent) {
     e?.preventDefault()
+    if (saving) return
+    
     setFormErrors({})
     try {
-      const payload = { criteria, option, level, exception: exceptionBy }
-      await rrmSchema.validate(payload, { abortEarly: false })
-      if (editingId) {
-        setRows((prev) => prev.map((r) => (r.id === editingId ? { ...r, criteria, option, level, exception: exceptionBy } : r)))
-        pushToast("RRM entry updated")
-      } else {
-        const id = String(Date.now())
-        setRows((prev) => [{ id, criteria, option, level, exception: exceptionBy, active: true }, ...prev])
-        pushToast("RRM entry added")
+      const payload = { 
+        criteria_id: criteriaId, 
+        rrm_option: option,
+        rrm_level: level,
+        rrm_exception: exceptionBy 
       }
+      await rrmSchema.validate(payload, { abortEarly: false })
+      
+      setSaving(true)
+      
+      if (editingId) {
+        // Update existing entry
+        const res = await fetch(`${API_BASE}/api/setup/risk-management/${editingId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, status: 'Active' })
+        })
+        
+        if (!res.ok) {
+          const errorData = await res.json()
+          if (errorData.errors && Array.isArray(errorData.errors)) {
+            const errs: Record<string, string> = {}
+            errorData.errors.forEach((err: any) => {
+              if (err.path) errs[err.path] = err.msg
+            })
+            setFormErrors(errs)
+            return
+          }
+          throw new Error(errorData.error || `HTTP ${res.status}`)
+        }
+        
+        await loadRiskManagement()
+        pushToast("RRM entry updated", { type: "success" })
+      } else {
+        // Create new entry
+        const res = await fetch(`${API_BASE}/api/setup/risk-management`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ...payload, status: 'Active' })
+        })
+        
+        if (!res.ok) {
+          const errorData = await res.json()
+          if (errorData.errors && Array.isArray(errorData.errors)) {
+            const errs: Record<string, string> = {}
+            errorData.errors.forEach((err: any) => {
+              if (err.path) errs[err.path] = err.msg
+            })
+            setFormErrors(errs)
+            return
+          }
+          throw new Error(errorData.error || `HTTP ${res.status}`)
+        }
+        
+        await loadRiskManagement()
+        pushToast("RRM entry added", { type: "success" })
+      }
+      
       resetForm()
       setShowForm(false)
-    } catch (err) {
+    } catch (err: any) {
       if (err instanceof yup.ValidationError) {
         const errs: Record<string, string> = {}
         err.inner.forEach((e) => {
@@ -177,8 +321,10 @@ export default function RiskManagement() {
         })
         setFormErrors(errs)
       } else {
-        pushToast("Validation failed")
+        pushToast(err?.message || "Failed to save", { type: "error" })
       }
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -186,7 +332,7 @@ export default function RiskManagement() {
     const r = rows.find((x) => x.id === id)
     if (!r) return
     setEditingId(id)
-    setCriteria(r.criteria)
+    setCriteriaId(r.criteria_id)
     setOption(r.option)
     setLevel(r.level)
     setExceptionBy(r.exception)
@@ -199,22 +345,64 @@ export default function RiskManagement() {
     const r = rows.find((x) => x.id === id)
     pushToast(`Delete "${r ? r.criteria : "this entry"}"?`, { type: "confirm", targetId: id })
   }
-  function confirmDelete(toastId: string, rowId?: string) {
+  
+  async function confirmDelete(toastId: string, rowId?: string) {
     if (!rowId) {
       removeToast(toastId)
       return
     }
-    setRows((prev) => prev.filter((r) => r.id !== rowId))
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/setup/risk-management/${rowId}`, {
+        method: 'DELETE'
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || `HTTP ${res.status}`)
+      }
+      
+      await loadRiskManagement()
+      pushToast("RRM entry deleted", { type: "success" })
+      if (editingId === rowId) resetForm()
+    } catch (err: any) {
+      pushToast(err?.message || "Failed to delete", { type: "error" })
+    }
+    
     removeToast(toastId)
-    pushToast("RRM entry deleted")
-    if (editingId === rowId) resetForm()
   }
+  
   function cancelDelete(toastId: string) {
     removeToast(toastId)
   }
 
-  function toggleActive(id: string) {
-    setRows((prev) => prev.map((r) => (r.id === id ? { ...r, active: !r.active } : r)))
+  async function toggleActive(id: string) {
+    try {
+      const row = rows.find(r => r.id === id)
+      if (!row) return
+      
+      const res = await fetch(`${API_BASE}/api/setup/risk-management/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          criteria_id: row.criteria_id,
+          rrm_option: row.option,
+          rrm_level: row.level,
+          rrm_exception: row.exception,
+          status: row.active ? 'Inactive' : 'Active'
+        })
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || `HTTP ${res.status}`)
+      }
+      
+      await loadRiskManagement()
+      pushToast(`Entry ${row.active ? 'deactivated' : 'activated'}`, { type: "success" })
+    } catch (err: any) {
+      pushToast(err?.message || "Failed to update status", { type: "error" })
+    }
   }
 
   function handleSort(col: keyof Row) {
@@ -225,59 +413,122 @@ export default function RiskManagement() {
     }
   }
 
-  // Add / edit / remove criteria handlers
-  const addCriteria = (v: string) => {
+  // Add criteria
+  const addCriteria = async (v: string) => {
     const trimmed = v.trim()
-    if (!trimmed) return pushToast("Enter criteria")
-    if (!criteriaOptions.includes(trimmed)) setCriteriaOptions((p) => [trimmed, ...p])
-    setCriteria(trimmed)
-    pushToast("Criteria added")
-    setShowAddCriteria(false)
+    if (!trimmed) return pushToast("Enter criteria", { type: "error" })
+    
+    setCriteriaLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/setup/rrm-criteria`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: trimmed, status: 'Active' })
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || `HTTP ${res.status}`)
+      }
+      
+      await loadCriteria()
+      const newCriteriaObj = criteriaOptions.find(c => c.name === trimmed)
+      if (newCriteriaObj) setCriteriaId(newCriteriaObj.id)
+      
+      pushToast("Criteria added", { type: "success" })
+      setShowAddCriteria(false)
+      setNewCriteria("")
+    } catch (err: any) {
+      pushToast(err?.message || "Failed to add criteria", { type: "error" })
+    } finally {
+      setCriteriaLoading(false)
+    }
   }
 
   const editCriteria = (idx: number) => {
     const c = criteriaOptions[idx]
     if (!c) return
-    setNewCriteria(c)
+    setNewCriteria(c.name)
   }
 
-  const removeCriteria = (idx: number) => {
-    const removed = criteriaOptions[idx]
-    setCriteriaOptions((p) => p.filter((_, i) => i !== idx))
-    pushToast(`Removed criteria: ${removed}`)
+  const removeCriteria = async (idx: number) => {
+    const criteria = criteriaOptions[idx]
+    if (!criteria) return
+    
+    // Note: You'd need a DELETE endpoint for criteria
+    // For now, just show a message
+    pushToast("Criteria deletion not implemented yet", { type: "error" })
   }
 
-  // existing single-level add (keeps backwards compatibility)
-  const addLevel = (value: number, label: string) => {
-    if (!value || !label.trim()) return pushToast("Enter level and label")
-    const labelText = `${value} (${label.trim()})`
-    if (!levelOptions.some((lo) => lo.value === value)) setLevelOptions((p) => [{ value, label: labelText }, ...p])
-    setLevel(value)
-    pushToast("Level added")
-    setShowAddLevel(false)
+  // Add level (simplified - you can expand this)
+  const addLevel = async (value: number, label: string) => {
+    if (!value || !label.trim()) return pushToast("Enter level and label", { type: "error" })
+    
+    setLevelsLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/api/setup/rrm-levels`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          level_value: value,
+          level_label: `${value} (${label.trim()})`,
+          status: 'Active'
+        })
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        throw new Error(errorData.error || `HTTP ${res.status}`)
+      }
+      
+      await loadLevels()
+      setLevel(value)
+      pushToast("Level added", { type: "success" })
+      setShowAddLevel(false)
+      setNewLevelValue("")
+      setNewLevelLabel("")
+    } catch (err: any) {
+      pushToast(err?.message || "Failed to add level", { type: "error" })
+    } finally {
+      setLevelsLoading(false)
+    }
   }
 
-  const saveLevelRanges = () => {
+  const saveLevelRanges = async () => {
     const { lowMin, lowMax, medMin, medMax, highMin, highMax } = rangeInputs
 
     if ([lowMin, lowMax, medMin, medMax, highMin, highMax].some((n) => typeof n !== "number" || Number.isNaN(n))) {
-      return pushToast("Enter valid numeric ranges")
+      return pushToast("Enter valid numeric ranges", { type: "error" })
     }
     if (lowMin > lowMax || medMin > medMax || highMin > highMax) {
-      return pushToast("Range min must be <= max")
+      return pushToast("Range min must be <= max", { type: "error" })
     }
-    if (lowMax >= medMin || medMax >= highMin) pushToast("Warning: ranges overlap or are contiguous")
+    if (lowMax >= medMin || medMax >= highMin) pushToast("Warning: ranges overlap or are contiguous", { type: "info" })
 
-    const others = levelOptions.filter((lo) => ![1, 2, 3].includes(lo.value))
-    const newOnes: LevelOption[] = [
-      { value: 1, label: `1 (Low ${lowMin}-${lowMax})`, range: { min: lowMin, max: lowMax } },
-      { value: 2, label: `2 (Medium ${medMin}-${medMax})`, range: { min: medMin, max: medMax } },
-      { value: 3, label: `3 (High ${highMin}-${highMax})`, range: { min: highMin, max: highMax } },
-    ]
-    setLevelOptions([...newOnes, ...others])
-    setLevel(1)
-    setShowAddLevel(false)
-    pushToast("RRM level ranges saved")
+    // Update levels 1, 2, 3 with ranges
+    try {
+      const updates = [
+        { value: 1, label: `1 (Low ${lowMin}-${lowMax})`, range: { min: lowMin, max: lowMax } },
+        { value: 2, label: `2 (Medium ${medMin}-${medMax})`, range: { min: medMin, max: medMax } },
+        { value: 3, label: `3 (High ${highMin}-${highMax})`, range: { min: highMin, max: highMax } },
+      ]
+      
+      // Note: You'd need to implement level updates in your API
+      // For now, just update local state
+      const others = levelOptions.filter((lo) => ![1, 2, 3].includes(lo.value))
+      const newOnes: LevelOption[] = updates.map(u => ({
+        id: levelOptions.find(lo => lo.value === u.value)?.id || 0,
+        value: u.value,
+        label: u.label,
+        range: u.range
+      }))
+      setLevelOptions([...newOnes, ...others])
+      setLevel(1)
+      setShowAddLevel(false)
+      pushToast("RRM level ranges saved", { type: "success" })
+    } catch (err: any) {
+      pushToast(err?.message || "Failed to save ranges", { type: "error" })
+    }
   }
 
   const toggleAddLevelPanel = () => {
@@ -297,10 +548,10 @@ export default function RiskManagement() {
     setShowAddLevel((v) => !v)
   }
 
-  // Export CSV (works client-side)
+  // Export CSV
   const exportCSV = () => {
     if (!rows || rows.length === 0) {
-      pushToast("No rows to export")
+      pushToast("No rows to export", { type: "error" })
       return
     }
     const headers = ["Criteria", "RRM Option", "RRM Level", "RRM Exception", "Status"]
@@ -327,7 +578,17 @@ export default function RiskManagement() {
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
-    pushToast(`Exported ${rows.length} row(s)`)
+    pushToast(`Exported ${rows.length} row(s)`, { type: "success" })
+  }
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-6">
+        <div className="text-center py-12">
+          <div className="text-slate-600 dark:text-slate-300">Loading risk management data...</div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -349,7 +610,7 @@ export default function RiskManagement() {
           </div>
 
           <div className="flex items-center gap-2 ml-auto">
-            <button onClick={() => { setShowForm((s) => !s); setEditingId(null) }} className="inline-flex items-center gap-2 px-3 py-2 rounded bg-primary text-primary-foreground shadow-sm hover:shadow focus:outline-none">
+            <button onClick={() => { setShowForm((s) => !s); resetForm() }} className="inline-flex items-center gap-2 px-3 py-2 rounded bg-primary text-primary-foreground shadow-sm hover:shadow focus:outline-none">
               <PlusCircle className="h-4 w-4" /> {showForm ? "Close Form" : "New RRM"}
             </button>
 
@@ -379,26 +640,28 @@ export default function RiskManagement() {
                     <label className="text-xs text-muted-foreground dark:text-slate-300 block mb-1">Criteria</label>
                     <div className="flex items-center gap-3">
                       <select
-                        value={criteria}
-                        onChange={(e) => setCriteria(e.target.value)}
-                        className={`flex-1 h-10 px-3 rounded border ${formErrors.criteria ? "border-rose-400 dark:border-rose-400" : "border-border dark:border-slate-700"} bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100`}
+                        value={criteriaId}
+                        onChange={(e) => setCriteriaId(Number(e.target.value))}
+                        className={`flex-1 h-10 px-3 rounded border ${formErrors.criteria_id ? "border-rose-400 dark:border-rose-400" : "border-border dark:border-slate-700"} bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100`}
+                        disabled={saving}
                       >
-                        <option value="">Select a Criteria</option>
-                        {criteriaOptions.map((c) => <option key={c} value={c}>{c}</option>)}
+                        <option value={0}>Select a Criteria</option>
+                        {criteriaOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
 
                       <button
                         type="button"
                         onClick={() => {
-                          setNewCriteria(criteria || criteriaOptions[0] || SAMPLE[0].criteria || "")
+                          setNewCriteria("")
                           setShowAddCriteria(true)
                         }}
                         className="h-10 px-4 min-w-[150px] whitespace-nowrap rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100 text-sm"
+                        disabled={saving}
                       >
                         Add RRM Criteria
                       </button>
                     </div>
-                    {formErrors.criteria && <div className="text-rose-600 text-xs mt-1">{formErrors.criteria}</div>}
+                    {formErrors.criteria_id && <div className="text-rose-600 text-xs mt-1">{formErrors.criteria_id}</div>}
                   </div>
                 </div>
 
@@ -409,20 +672,22 @@ export default function RiskManagement() {
                       <select
                         value={level}
                         onChange={(e) => setLevel(Number(e.target.value))}
-                        className={`flex-1 h-10 px-3 rounded border ${formErrors.level ? "border-rose-400 dark:border-rose-400" : "border-border dark:border-slate-700"} bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100`}
+                        className={`flex-1 h-10 px-3 rounded border ${formErrors.rrm_level ? "border-rose-400 dark:border-rose-400" : "border-border dark:border-slate-700"} bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100`}
+                        disabled={saving}
                       >
-                        {levelOptions.map((lo) => <option key={lo.value} value={lo.value}>{lo.label}</option>)}
+                        {levelOptions.map((lo) => <option key={lo.id} value={lo.value}>{lo.label}</option>)}
                       </select>
 
                       <button
                         type="button"
                         onClick={toggleAddLevelPanel}
                         className="h-10 px-4 min-w-[150px] whitespace-nowrap rounded bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-100 text-sm"
+                        disabled={saving}
                       >
                         {showAddLevel ? "Close" : "Add RRM Level"}
                       </button>
                     </div>
-                    {formErrors.level && <div className="text-rose-600 text-xs mt-1">{formErrors.level}</div>}
+                    {formErrors.rrm_level && <div className="text-rose-600 text-xs mt-1">{formErrors.rrm_level}</div>}
                   </div>
                 </div>
 
@@ -450,29 +715,31 @@ export default function RiskManagement() {
                     </div>
 
                     <div className="flex gap-2 mt-2">
-                      <button type="button" onClick={saveLevelRanges} className="h-10 px-4 rounded bg-primary text-primary-foreground">Save Ranges</button>
+                      <button type="button" onClick={saveLevelRanges} className="h-10 px-4 rounded bg-primary text-primary-foreground" disabled={saving}>Save Ranges</button>
                       <button type="button" onClick={() => setShowAddLevel(false)} className="h-10 px-4 rounded border">Cancel</button>
                     </div>
                   </div>
                 )}
 
                 <div className="flex items-center gap-3">
-                  <button type="submit" className="inline-flex items-center justify-center gap-2 h-10 py-0 px-4 rounded bg-primary text-primary-foreground">{editingId ? "Save" : "Add"}</button>
-                  <button type="button" onClick={resetForm} className="inline-flex items-center justify-center gap-2 h-10 py-0 px-4 rounded border border-border bg-transparent text-sm">Reset</button>
+                  <button type="submit" disabled={saving} className="inline-flex items-center justify-center gap-2 h-10 py-0 px-4 rounded bg-primary text-primary-foreground disabled:opacity-60">
+                    {saving ? "Saving..." : (editingId ? "Save" : "Add")}
+                  </button>
+                  <button type="button" onClick={resetForm} disabled={saving} className="inline-flex items-center justify-center gap-2 h-10 py-0 px-4 rounded border border-border bg-transparent text-sm disabled:opacity-60">Reset</button>
                 </div>
               </div>
 
               <div className="w-1/2 min-w-[320px] flex flex-col gap-3">
                 <div className="flex flex-col">
                   <label className="text-xs text-muted-foreground dark:text-slate-300">RRM Option</label>
-                  <input value={option} onChange={(e) => setOption(e.target.value)} className={`w-full mt-1 px-3 py-2 rounded border ${formErrors.option ? "border-rose-400 dark:border-rose-400" : "border-border dark:border-slate-700"} bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400`} placeholder="Option (eg. Greater than $5,000,000)" />
-                  {formErrors.option && <div className="text-rose-600 text-xs mt-1">{formErrors.option}</div>}
+                  <input value={option} onChange={(e) => setOption(e.target.value)} className={`w-full mt-1 px-3 py-2 rounded border ${formErrors.rrm_option ? "border-rose-400 dark:border-rose-400" : "border-border dark:border-slate-700"} bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400`} placeholder="Option (eg. Greater than $5,000,000)" disabled={saving} />
+                  {formErrors.rrm_option && <div className="text-rose-600 text-xs mt-1">{formErrors.rrm_option}</div>}
                 </div>
 
                 <div className="flex flex-col">
                   <label className="text-xs text-muted-foreground dark:text-slate-300">Exception By</label>
-                  <input value={exceptionBy} onChange={(e) => setExceptionBy(e.target.value)} className={`w-full mt-1 px-3 py-2 rounded border ${formErrors.exception ? "border-rose-400 dark:border-rose-400" : "border-border dark:border-slate-700"} bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400`} placeholder="Person/committee to approve exception" />
-                  {formErrors.exception && <div className="text-rose-600 text-xs mt-1">{formErrors.exception}</div>}
+                  <input value={exceptionBy} onChange={(e) => setExceptionBy(e.target.value)} className={`w-full mt-1 px-3 py-2 rounded border ${formErrors.rrm_exception ? "border-rose-400 dark:border-rose-400" : "border-border dark:border-slate-700"} bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-400`} placeholder="Person/committee to approve exception" disabled={saving} />
+                  {formErrors.rrm_exception && <div className="text-rose-600 text-xs mt-1">{formErrors.rrm_exception}</div>}
                 </div>
               </div>
             </div>
@@ -565,7 +832,6 @@ export default function RiskManagement() {
               </button>
             </div>
 
-            {/* top row: input + buttons (matches screenshot) */}
             <div className="flex items-center gap-3 mb-4">
               <label className="text-sm text-muted-foreground w-28 flex items-center">RRM Criteria: *</label>
               <input
@@ -573,32 +839,33 @@ export default function RiskManagement() {
                 onChange={(e) => setNewCriteria(e.target.value)}
                 placeholder="RRM Criteria"
                 className="flex-1 h-10 px-3 rounded border border-border bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100"
+                disabled={criteriaLoading}
               />
 
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={() => addCriteria(newCriteria)}
-                  className="h-10 py-0 px-4 rounded bg-emerald-500 text-white flex items-center gap-2"
+                  disabled={criteriaLoading}
+                  className="h-10 py-0 px-4 rounded bg-emerald-500 text-white flex items-center gap-2 disabled:opacity-60"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 12h14M12 5v14" /></svg>
-                  Add RRM Criteria
+                  {criteriaLoading ? "Adding..." : "Add RRM Criteria"}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setNewCriteria("")}
-                  className="h-10 py-0 px-4 rounded border bg-transparent text-sm"
+                  disabled={criteriaLoading}
+                  className="h-10 py-0 px-4 rounded border bg-transparent text-sm disabled:opacity-60"
                 >
                   Reset RRM Criteria
                 </button>
               </div>
             </div>
 
-            {/* divider */}
             <div className="border-t border-border mb-4" />
 
-            {/* list table (matches screenshot: numbered list + action) */}
             <div className="overflow-auto max-h-60">
               <table className="w-full table-auto text-sm">
                 <thead className="bg-slate-50 dark:bg-slate-900">
@@ -610,9 +877,9 @@ export default function RiskManagement() {
                 </thead>
                 <tbody>
                   {criteriaOptions.map((c, i) => (
-                    <tr key={c} className={`border-t ${i % 2 === 0 ? "" : "bg-muted/5"}`}>
+                    <tr key={c.id} className={`border-t ${i % 2 === 0 ? "" : "bg-muted/5"}`}>
                       <td className="py-3 px-3 align-top">{i + 1}</td>
-                      <td className="py-3 px-3 align-top">{c}</td>
+                      <td className="py-3 px-3 align-top">{c.name}</td>
                       <td className="py-3 px-3 align-top text-right">
                         <div className="inline-flex items-center gap-2">
                           <button
@@ -645,7 +912,6 @@ export default function RiskManagement() {
               </table>
             </div>
 
-            {/* footer: close button (optional extra) */}
             <div className="flex justify-end mt-4">
               <button type="button" onClick={() => setShowAddCriteria(false)} className="h-10 px-4 rounded bg-rose-600 text-white">Close</button>
             </div>
@@ -656,7 +922,11 @@ export default function RiskManagement() {
       {/* Toast container */}
       <div aria-live="polite" className="fixed right-4 bottom-4 z-50 flex flex-col gap-3">
         {toasts.map((t) => (
-          <div key={t.id} className="w-80 bg-white dark:bg-slate-800 border shadow p-3 rounded">
+          <div key={t.id} className={`w-80 border shadow p-3 rounded ${
+            t.type === "success" ? "bg-emerald-50 border-emerald-200 text-emerald-800" :
+            t.type === "error" ? "bg-rose-50 border-rose-200 text-rose-800" :
+            "bg-white dark:bg-slate-800"
+          }`}>
             <div className="flex items-start justify-between gap-2">
               <div className="flex-1">
                 <div className="font-semibold text-sm">{t.message}</div>
