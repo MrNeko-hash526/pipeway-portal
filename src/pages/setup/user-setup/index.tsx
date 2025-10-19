@@ -3,29 +3,18 @@ import React from 'react'
 import * as ExcelJS from 'exceljs'
 import { DownloadCloud } from 'lucide-react'
 
+const API_BASE = typeof window !== 'undefined' 
+  ? (window as any).__ENV__?.NEXT_PUBLIC_API_BASE || 'http://localhost:3000'
+  : 'http://localhost:3000'
+
 export default function UserSetupPage() {
   const [query, setQuery] = React.useState('')
   const [status, setStatus] = React.useState('All')
   const [userTypeFilter, setUserTypeFilter] = React.useState('All')
+  const [loading, setLoading] = React.useState(false)
 
-  // extra sample rows (more data + company/organization and type)
-  const extraUsers = [
-    { id: 101, firstName: 'Marta', lastName: 'Cortina', email: 'martac@pollackrosen.com', company: 'AACANet (organization)', role: 'Viewer', phone: '555-0101', status: 'Pending', type: 'Organization' },
-    { id: 102, firstName: 'Greg', lastName: 'Straub', email: 'gstraub@pollackrosen.com', company: 'AACANet (organization)', role: 'Viewer', phone: '555-0102', status: 'Pending', type: 'Organization' },
-    { id: 103, firstName: 'Missy', lastName: 'Hughes', email: 'mh@mendelsonfirm.com', company: 'Mendelson Law Offices', role: 'Manager', phone: '555-0103', status: 'Active', type: 'Company' },
-    { id: 104, firstName: 'Tammy', lastName: 'Sager', email: 'tsager@aacanet.org', company: 'AACANet, Inc.', role: 'Admin', phone: '555-0104', status: 'Active', type: 'Organization' },
-    { id: 105, firstName: 'Debbie', lastName: 'Sudduth', email: 'dsudduth@aacanet.org', company: 'AACANet, Inc.', role: 'Manager', phone: '555-0105', status: 'Active', type: 'Organization' },
-    { id: 106, firstName: 'CAM', lastName: 'Training', email: 'camtraining@aacanet.org', company: 'AACANet, Inc.', role: 'Auditor', phone: '555-0106', status: 'Active', type: 'Organization' },
-    { id: 107, firstName: 'Lynn', lastName: 'Ring', email: 'lynnring@hsbattys.com', company: 'Heavner, Beyers & Mihlar, LLC', role: 'Viewer', phone: '555-0107', status: 'Active', type: 'Company' },
-    { id: 108, firstName: 'Heather', lastName: 'Miller', email: 'heathermiller@hsbattys.com', company: 'Heavner, Beyers & Mihlar, LLC', role: 'Viewer', phone: '555-0108', status: 'Active', type: 'Company' },
-    { id: 109, firstName: 'Ivy', lastName: 'Capelli', email: 'icapelli@leopoldassociates.com', company: 'Leopold & Associates, PLLC', role: 'Admin', phone: '555-0109', status: 'Active', type: 'Company' },
-  ]
-
-  // local editable copy of users (use only the static rows — do not use initialUsers)
-  const [users, setUsers] = React.useState(() => {
-    // use only the predefined extraUsers as the initial dataset
-    return [...extraUsers]
-  })
+  // Load from backend instead of static data
+  const [users, setUsers] = React.useState<any[]>([])
 
   // sort state
   const [sort, setSort] = React.useState<{ key: string | null; dir: 'asc' | 'desc' | null }>({
@@ -37,6 +26,56 @@ export default function UserSetupPage() {
   const [toasts, setToasts] = React.useState<any[]>([])
   const addToast = (t: any) => setToasts(prev => [...prev, { id: String(Date.now()) + Math.random(), ...t }])
   const removeToast = (id: string) => setToasts(prev => prev.filter(x => x.id !== id))
+
+  // Load users from backend on mount
+  React.useEffect(() => {
+    let mounted = true
+    async function loadUsers() {
+      setLoading(true)
+      try {
+        const url = `${API_BASE.replace(/\/$/, '')}/api/setup/user?limit=1000`
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const body = await res.json()
+        
+        if (!mounted) return
+        
+        // Map backend data to frontend format
+        const rows = Array.isArray(body.data) ? body.data : []
+        const mapped = rows.map((r: any) => ({
+          id: r.id,
+          firstName: r.first_name || '',
+          lastName: r.last_name || '',
+          email: r.email || '',
+          company: r.user_type === 'Organization' 
+            ? r.organization_display || `Organization ID: ${r.organization_id}`
+            : r.company_name || '',
+          role: r.user_role || '',
+          phone: '', // Not stored in user_setup table
+          status: r.status || 'Active',
+          type: r.user_type || 'Organization'
+        }))
+        
+        console.log('📊 Loaded users:', mapped.length)
+        setUsers(mapped)
+      } catch (err) {
+        console.error('Failed to load users:', err)
+        if (mounted) {
+          addToast({ 
+            id: String(Date.now()), 
+            type: 'info', 
+            title: 'Load failed', 
+            message: String(err), 
+            timeout: 4000 
+          })
+        }
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    loadUsers()
+    return () => { mounted = false }
+  }, [])
 
   const columns: { key: string; label: string; sortable?: boolean }[] = [
     { key: 'idx', label: '#' },
@@ -91,10 +130,45 @@ export default function UserSetupPage() {
 
   // actions
   const handleEditClick = (user: any) => {
-    window.location.href = `/setup/user-setup/edit?id=${encodeURIComponent(String(user.id))}`
+    window.location.href = `/setup/user-setup/add?id=${encodeURIComponent(String(user.id))}`
   }
-  const handleWarn = (id: number) => setUsers(prev => prev.map(u => (u.id === id ? { ...u, status: 'Pending' } : u)))
-  const handleDelete = (id: number, name?: string) => {
+  
+  const handleWarn = async (id: number) => {
+    try {
+      const url = `${API_BASE.replace(/\/$/, '')}/api/setup/user/${id}`
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'Pending' }),
+      })
+      
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      
+      // Update local state only after successful DB update
+      setUsers(prev => prev.map(u => (u.id === id ? { ...u, status: 'Pending' } : u)))
+      
+      addToast({
+        id: String(Date.now()) + Math.random(),
+        type: 'info',
+        title: 'Warning issued',
+        message: 'User status changed to Pending.',
+        timeout: 3000,
+      })
+    } catch (err) {
+      console.error('Warn failed:', err)
+      addToast({
+        id: String(Date.now()) + Math.random(),
+        type: 'info',
+        title: 'Warning failed',
+        message: String(err),
+        timeout: 4000,
+      })
+    }
+  }
+  
+  const handleDelete = async (id: number, name?: string) => {
     const toastId = String(Date.now()) + Math.random()
     addToast({
       id: toastId,
@@ -103,24 +177,36 @@ export default function UserSetupPage() {
       message: `Delete "${name ?? ''}" permanently?`,
       confirmLabel: 'Delete',
       cancelLabel: 'Cancel',
-      onConfirm: () => {
-        setUsers(prev => prev.filter(u => u.id !== id))
-        removeToast(toastId)
-        addToast({
-          id: String(Date.now()) + Math.random(),
-          type: 'info',
-          title: 'Deleted',
-          message: `User "${name ?? ''}" deleted successfully.`,
-          timeout: 3000,
-        })
+      onConfirm: async () => {
+        try {
+          const url = `${API_BASE.replace(/\/$/, '')}/api/setup/user/${id}`
+          const res = await fetch(url, { method: 'DELETE' })
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
+          
+          // Update local state only after successful DB deletion
+          setUsers(prev => prev.filter(u => u.id !== id))
+          removeToast(toastId)
+          addToast({
+            id: String(Date.now()) + Math.random(),
+            type: 'info',
+            title: 'Deleted',
+            message: `User "${name ?? ''}" deleted successfully.`,
+            timeout: 3000,
+          })
+        } catch (err) {
+          console.error('Delete failed:', err)
+          removeToast(toastId)
+          addToast({
+            id: String(Date.now()) + Math.random(),
+            type: 'info',
+            title: 'Delete failed',
+            message: String(err),
+            timeout: 4000,
+          })
+        }
       },
     })
   }
-
-  const handleSaveEdit = (updated: any) => {
-    setUsers(prev => prev.map(u => (u.id === updated.id ? { ...u, ...updated } : u)))
-  }
-  const handleCloseEdit = () => {}
 
   // Export to Excel
   const handleExport = async () => {
@@ -247,7 +333,14 @@ export default function UserSetupPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredAndSorted.map((o, idx) => (
+            {loading && (
+              <tr>
+                <td colSpan={columns.length + 1} className="p-6 text-center text-sm text-slate-500">
+                  Loading users...
+                </td>
+              </tr>
+            )}
+            {!loading && filteredAndSorted.map((o, idx) => (
               <tr key={o.id} className="border-t even:bg-white/2">
                 <td className="p-3 text-sm">{idx + 1}</td>
                 <td className="p-3 text-sm">{o.firstName}</td>
@@ -269,17 +362,16 @@ export default function UserSetupPage() {
                 </td>
                 <td className="p-3 text-sm">
                   <div className="flex items-center gap-3">
-                    <Link href={`/setup/user-setup/edit?id=${encodeURIComponent(String(o.id))}`} className="text-sky-600 cursor-pointer hover:underline">
-                      <span className="sr-only">Edit</span>
+                    <button onClick={() => handleEditClick(o)} className="text-sky-600 cursor-pointer hover:underline">
                       Edit
-                    </Link>
+                    </button>
                     <button type="button" className="text-amber-600 cursor-pointer hover:underline" onClick={() => handleWarn(o.id)}>Warn</button>
                     <button type="button" className="text-red-600 cursor-pointer hover:underline" onClick={() => handleDelete(o.id, `${o.firstName} ${o.lastName}`)}>Delete</button>
                   </div>
                 </td>
               </tr>
             ))}
-            {filteredAndSorted.length === 0 && (
+            {!loading && filteredAndSorted.length === 0 && (
               <tr>
                 <td colSpan={columns.length + 1} className="p-6 text-center text-sm text-slate-500">
                   No users found.

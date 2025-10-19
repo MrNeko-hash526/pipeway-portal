@@ -1,30 +1,67 @@
 import Link from '@/components/link'
 import React from 'react'
-import * as ExcelJS from 'exceljs' // npm install exceljs
+import * as ExcelJS from 'exceljs'
 import { DownloadCloud } from 'lucide-react'
-import { vendors as initialVendors } from '@/lib/setup-data'
+
+const API_BASE = typeof window !== 'undefined' 
+  ? (window as any).__ENV__?.NEXT_PUBLIC_API_BASE || 'http://localhost:3000'
+  : 'http://localhost:3000'
 
 export default function VendorSetupPage() {
   const [query, setQuery] = React.useState('')
   const [status, setStatus] = React.useState('All')
 
-  // local, editable copy of vendors
-  const [vendors, setVendors] = React.useState(() => [...initialVendors])
+  // load from backend
+  const [vendors, setVendors] = React.useState<any[]>([])
+  const [loading, setLoading] = React.useState(false)
+  const [viewVendor, setViewVendor] = React.useState<any | null>(null)
+  const [editing, setEditing] = React.useState<any | null>(null)
 
   // sort state: key === null means no sorting
-  const [sort, setSort] = React.useState<{ key: string | null; dir: 'asc' | 'desc' | null }>( {
+  const [sort, setSort] = React.useState<{ key: string | null; dir: 'asc' | 'desc' | null }>({
     key: null,
     dir: null,
-  } )
-
-  // editing drawer state
-  const [editing, setEditing] = React.useState<any | null>(null)
+  })
 
   // simple toast system (confirm + info)
   const [toasts, setToasts] = React.useState<any[]>([])
 
   const addToast = (t: any) => setToasts(prev => [...prev, { id: String(Date.now()) + Math.random(), ...t }])
   const removeToast = (id: string) => setToasts(prev => prev.filter(x => x.id !== id))
+
+  // Load vendors from backend on mount
+  React.useEffect(() => {
+    let mounted = true
+    async function load() {
+      setLoading(true)
+      try {
+        const url = (API_BASE || '').replace(/\/$/, '') + '/api/setup/vendor?limit=1000'
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const body = await res.json()
+        // service returns { rows, total, page, limit } — map rows into UI shape
+        const rows = Array.isArray(body.rows) ? body.rows : (Array.isArray(body) ? body : [])
+        const mapped = rows.map((r: any) => ({
+          id: r.id,
+          name: r.organization_name || r.name || '',
+          state: r.state || '',
+          email: r.email || '',
+          contact: `${r.contact_first || ''}${r.contact_first && r.contact_last ? ' ' : ''}${r.contact_last || ''}`.trim(),
+          phone: r.work_phone || r.support_number || '',
+          status: r.status || 'Active',
+          raw: r // keep full record for view/edit
+        }))
+        if (mounted) setVendors(mapped)
+      } catch (err) {
+        console.error('Failed to load vendors', err)
+        addToast({ type: 'info', title: 'Load failed', message: String(err), timeout: 4000 })
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    load()
+    return () => { mounted = false }
+  }, [])
 
   const columns: { key: string; label: string; sortable?: boolean }[] = [
     { key: 'idx', label: '#' },
@@ -60,18 +97,15 @@ export default function VendorSetupPage() {
     const dirMul = sort.dir === 'asc' ? 1 : -1
 
     const sorted = [...filtered].sort((a: any, b: any) => {
-      // special idx handling
       if (key === 'idx') return 0
 
       const va = String(a[key] ?? '')
       const vb = String(b[key] ?? '')
 
-      // numeric compare if both are numbers
       const na = parseFloat(va)
       const nb = parseFloat(vb)
       if (!Number.isNaN(na) && !Number.isNaN(nb)) return (na - nb) * dirMul
 
-      // compare status with stable ordering (Active, Pending, Inactive) if needed
       if (key === 'status') {
         const order: Record<string, number> = { Active: 0, Pending: 1, Inactive: 2 }
         const oa = order[va] ?? 99
@@ -79,27 +113,57 @@ export default function VendorSetupPage() {
         return (oa - ob) * dirMul
       }
 
-      // fallback string compare
       return va.localeCompare(vb) * dirMul
     })
 
     return sorted
   }, [query, status, sort, vendors])
 
-  // --- actions: edit, warn, delete ---
+  // --- actions: edit, warn, delete, view ---
   const handleEditClick = (item: any) => {
-    // Open the same Add Organization form but pass the id in the query
-    // so the add page can detect edit mode and prefill fields.
     const id = encodeURIComponent(String(item.id))
-    // if your app uses client-side routing, replace with router.push(...)
     window.location.href = `/setup/vendor-setup/add?id=${id}`
   }
 
-  const handleWarn = (id: number) => {
-    setVendors(prev => prev.map(v => (v.id === id ? { ...v, status: 'Pending' } : v)))
+  const handleWarn = async (id: number, name?: string) => {
+    try {
+      const url = (API_BASE || '').replace(/\/$/, '') + `/api/setup/vendor/${id}`
+      const res = await fetch(url, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'Pending' }),
+      })
+      
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        throw new Error(body.error || `HTTP ${res.status}`)
+      }
+      
+      // Update local state on success
+      setVendors(prev => prev.map(v => (v.id === id ? { ...v, status: 'Pending' } : v)))
+      
+      addToast({
+        id: String(Date.now()) + Math.random(),
+        type: 'info',
+        title: 'Warning Applied',
+        message: `Organization "${name ?? ''}" status changed to Pending.`,
+        timeout: 3000,
+      })
+    } catch (err) {
+      console.error('warn failed', err)
+      addToast({ 
+        id: String(Date.now()), 
+        type: 'info', 
+        title: 'Warning failed', 
+        message: String(err), 
+        timeout: 4000 
+      })
+    }
   }
 
-  // show confirm toast, delete on confirm, then show success toast
+  // Delete: call backend, then remove from state
   const handleDelete = (id: number, name?: string) => {
     const toastId = String(Date.now()) + Math.random()
     addToast({
@@ -109,20 +173,65 @@ export default function VendorSetupPage() {
       message: `Delete "${name ?? ''}" permanently?`,
       confirmLabel: 'Delete',
       cancelLabel: 'Cancel',
-      onConfirm: () => {
-        setVendors(prev => prev.filter(v => v.id !== id))
-        removeToast(toastId)
-        // success toast
-        const okId = String(Date.now()) + Math.random()
-        addToast({
-          id: okId,
-          type: 'info',
-          title: 'Deleted',
-          message: `Organization "${name ?? ''}" deleted successfully.`,
-          timeout: 3000,
-        })
+      onConfirm: async () => {
+        try {
+          removeToast(toastId)
+          const url = (API_BASE || '').replace(/\/$/, '') + `/api/setup/vendor/${id}`
+          const res = await fetch(url, { method: 'DELETE' })
+          if (!res.ok && res.status !== 204) {
+            const body = await res.json().catch(() => ({}))
+            throw new Error(body.error || `HTTP ${res.status}`)
+          }
+          setVendors(prev => prev.filter(v => v.id !== id))
+          addToast({
+            id: String(Date.now()) + Math.random(),
+            type: 'info',
+            title: 'Deleted',
+            message: `Organization "${name ?? ''}" deleted successfully.`,
+            timeout: 3000,
+          })
+        } catch (err) {
+          console.error('delete failed', err)
+          addToast({ id: String(Date.now()), type: 'info', title: 'Delete failed', message: String(err), timeout: 4000 })
+        }
       },
     })
+  }
+
+  // View details (fetch from backend) - shows attachments from vendor_attachments table
+  const handleView = async (id: number) => {
+    try {
+      const url = (API_BASE || '').replace(/\/$/, '') + `/api/setup/vendor/${id}`
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const body = await res.json()
+      setViewVendor(body)
+    } catch (err) {
+      console.error('Failed to load vendor', err)
+      addToast({ id: String(Date.now()), type: 'info', title: 'Load failed', message: String(err), timeout: 3000 })
+    }
+  }
+
+  // NEW: download attachment by fetching it and forcing browser "save as"
+  const handleDownloadAttachment = async (att: any) => {
+    try {
+      const filePath = att.url || `/uploads/vendor/${att.filename}`
+      const url = (API_BASE || '').replace(/\/$/, '') + filePath
+      const res = await fetch(url)
+      if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`)
+      const blob = await res.blob()
+      const blobUrl = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = blobUrl
+      a.download = att.filename || 'download'
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(blobUrl)
+    } catch (err) {
+      console.error('Download failed', err)
+      addToast({ id: String(Date.now()), type: 'info', title: 'Download failed', message: String(err), timeout: 3000 })
+    }
   }
 
   const handleSaveEdit = (updated: any) => {
@@ -140,11 +249,9 @@ export default function VendorSetupPage() {
       const workbook = new ExcelJS.Workbook()
       const ws = workbook.addWorksheet('Vendors')
 
-      // build header row
       const headerRow = ['#', ...visibleCols.map(c => c.label)]
       ws.addRow(headerRow)
 
-      // add data rows
       filteredAndSorted.forEach((r: any, i: number) => {
         const row = [i + 1, ...visibleCols.map(col => {
           const v = r[col.key]
@@ -153,7 +260,6 @@ export default function VendorSetupPage() {
         ws.addRow(row)
       })
 
-      // simple styling: bold header + auto width
       const header = ws.getRow(1)
       header.font = { bold: true }
       ws.columns.forEach((col) => {
@@ -161,11 +267,9 @@ export default function VendorSetupPage() {
           const l = val ? String(val).length : 0
           return Math.max(max, l)
         }, 10)
-        // clamp width
         col.width = Math.min(Math.max(maxLength + 2, 12), 50)
       })
 
-      // write to buffer and trigger download
       const buf = await workbook.xlsx.writeBuffer()
       const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
       const url = URL.createObjectURL(blob)
@@ -184,8 +288,6 @@ export default function VendorSetupPage() {
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6">
-      {/* breadcrumb is rendered globally via shared component */}
-
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">List of Organizations</h1>
@@ -230,7 +332,6 @@ export default function VendorSetupPage() {
               onClick={handleExport}
               className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-gradient-to-r from-sky-600 to-sky-500 text-white shadow-md hover:from-sky-700 hover:to-sky-600 transition-colors"
               title="Export visible rows to Excel"
-              aria-label="Export visible rows to Excel"
             >
               <DownloadCloud className="w-4 h-4" /> <span className="font-medium">Export</span>
             </button>
@@ -271,7 +372,14 @@ export default function VendorSetupPage() {
             </tr>
           </thead>
           <tbody>
-            {filteredAndSorted.map((o, idx) => (
+            {loading && (
+              <tr>
+                <td colSpan={columns.length + 1} className="p-6 text-center text-sm text-slate-500">
+                  Loading...
+                </td>
+              </tr>
+            )}
+            {!loading && filteredAndSorted.map((o, idx) => (
               <tr key={o.id} className="border-t even:bg-white/2">
                 <td className="p-3 text-sm">{idx + 1}</td>
                 <td className="p-3 text-sm">{o.name}</td>
@@ -290,16 +398,17 @@ export default function VendorSetupPage() {
                 </td>
                 <td className="p-3 text-sm">
                   <div className="flex items-center gap-2">
+                    <button onClick={() => handleView(o.id)} className="text-slate-700 hover:underline">View</button>
                     <Link href={`/setup/vendor-setup/edit?id=${encodeURIComponent(String(o.id))}`} className="text-sky-600 hover:underline">
                       Edit
                     </Link>
-                    <button type="button" className="text-amber-600 cursor-pointer hover:underline" onClick={() => handleWarn(o.id)}>Warn</button>
+                    <button type="button" className="text-amber-600 cursor-pointer hover:underline" onClick={() => handleWarn(o.id, o.name)}>Warn</button>
                     <button type="button" className="text-red-600 cursor-pointer hover:underline" onClick={() => handleDelete(o.id, o.name)}>Delete</button>
                   </div>
                 </td>
               </tr>
             ))}
-            {filteredAndSorted.length === 0 && (
+            {!loading && filteredAndSorted.length === 0 && (
               <tr>
                 <td colSpan={columns.length + 1} className="p-6 text-center text-sm text-slate-500">
                   No organizations found.
@@ -310,7 +419,80 @@ export default function VendorSetupPage() {
         </table>
       </div>
 
-      {/* Edit drawer/modal */}
+      {/* View modal - displays vendor details including attachments */}
+      {viewVendor && (
+        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-2xl bg-white dark:bg-slate-900 p-6 rounded shadow-xl max-h-[90vh] overflow-auto">
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="text-lg font-semibold">Organization Details</h3>
+              <button onClick={() => setViewVendor(null)} className="text-sm px-2 py-1 border rounded">Close</button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm block mb-1 font-medium">Organization</label>
+                <div className="text-sm">{viewVendor.organization_name}</div>
+              </div>
+              <div>
+                <label className="text-sm block mb-1 font-medium">Code</label>
+                <div className="text-sm">{viewVendor.organization_code || '-'}</div>
+              </div>
+              <div>
+                <label className="text-sm block mb-1 font-medium">Type</label>
+                <div className="text-sm">{viewVendor.type}</div>
+              </div>
+              <div>
+                <label className="text-sm block mb-1 font-medium">Risk</label>
+                <div className="text-sm">{viewVendor.risk_level || '-'}</div>
+              </div>
+              <div className="md:col-span-2">
+                <label className="text-sm block mb-1 font-medium">Address</label>
+                <div className="text-sm">
+                  {viewVendor.address1}{viewVendor.address2 ? `, ${viewVendor.address2}` : ''}{viewVendor.address3 ? `, ${viewVendor.address3}` : ''}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm block mb-1 font-medium">Contact</label>
+                <div className="text-sm">{(viewVendor.contact_first || '') + (viewVendor.contact_first && viewVendor.contact_last ? ' ' : '') + (viewVendor.contact_last || '')}</div>
+              </div>
+              <div>
+                <label className="text-sm block mb-1 font-medium">Phone / Email</label>
+                <div className="text-sm">{viewVendor.work_phone || '-'} / {viewVendor.email || '-'}</div>
+              </div>
+
+              <div className="md:col-span-2 border-t pt-3 mt-2">
+                <label className="text-sm block mb-2 font-medium">Attachments (from vendor_attachments table)</label>
+                <div className="space-y-2">
+                  {(!viewVendor.attachments || viewVendor.attachments.length === 0) && (
+                    <div className="text-sm text-slate-500">No attachments</div>
+                  )}
+                  {(viewVendor.attachments || []).map((a: any) => (
+                    <div key={a.id || a.filename} className="flex items-center gap-2 text-sm">
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadAttachment(a)}
+                        className="text-sky-600 hover:underline text-left"
+                        title={`Download ${a.filename}`}
+                      >
+                        📎 {a.filename}
+                      </button>
+                      <span className="text-xs text-slate-500">
+                        ({a.file_size ? `${Math.round(a.file_size / 1024)} KB` : 'unknown size'})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 text-right border-t pt-4">
+              <button onClick={() => setViewVendor(null)} className="px-3 py-2 border rounded">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit drawer/modal (keeps existing UI hook) */}
       {editing && (
         <div className="fixed inset-0 z-50 bg-black/40 flex justify-end">
           <div className="w-full md:w-2/5 bg-white dark:bg-slate-900 p-6 overflow-auto">
@@ -401,7 +583,6 @@ export default function VendorSetupPage() {
           ))}
         </div>
       )}
-      {/* auto-clear info toasts */}
       {toasts.map(t => {
         if (t.type === 'info' && t.timeout) {
           setTimeout(() => removeToast(t.id), t.timeout)
