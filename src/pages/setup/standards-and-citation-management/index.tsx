@@ -1,19 +1,28 @@
+"use client"
+
 import React from "react"
 import * as yup from "yup"
 
-const initialCategories = ["Information Security", "Privacy", "Operations"]
-const initialTitles = ["Policy", "Procedure", "Guideline"]
-const initialCitations = ["ISO 27001:2013", "NIST SP 800-53", "HIPAA"]
+const API_BASE = typeof window !== 'undefined' 
+  ? (window as any).__ENV__?.NEXT_PUBLIC_API_BASE || 'http://localhost:3000'
+  : 'http://localhost:3000'
+
+type Lookup = { id: number; name: string; status?: string }
+
+type Toast = {
+  id: string
+  type: "success" | "error" | "info"
+  title: string
+  message: string
+}
 
 // inline SVG caret used for custom select when a value is selected
 const arrowSvg =
   "data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23343A40' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"
 
-// local CSS to fully hide the native select caret across browsers
 const noCaretCss = `
   .no-caret { appearance: none; -webkit-appearance: none; -moz-appearance: none; background-image: none; background-position: right 0.75rem center; background-repeat: no-repeat; padding-right: 0.75rem; }
   .no-caret::-ms-expand { display: none; }
-  /* show custom caret only when focused or when element has a value (data-has-value="true") */
   .no-caret:focus, .no-caret[data-has-value="true"] {
     background-image: url("${arrowSvg}");
     padding-right: 2.25rem;
@@ -42,41 +51,111 @@ function AddItemModal({
   items,
   setItems,
   setSelected,
+  addToast,
 }: {
   type: "Category" | "Title" | "Citation" | null
   open: boolean
   onClose: () => void
-  items: string[]
-  setItems: React.Dispatch<React.SetStateAction<string[]>>
+  items: Lookup[]
+  setItems: React.Dispatch<React.SetStateAction<Lookup[]>>
   setSelected: React.Dispatch<React.SetStateAction<string>>
+  addToast: (toast: Omit<Toast, "id">) => void
 }) {
   const [input, setInput] = React.useState("")
   const [active, setActive] = React.useState(true)
   const [warning, setWarning] = React.useState<string | null>(null)
+  const [saving, setSaving] = React.useState(false)
 
   React.useEffect(() => {
     if (open) {
       setInput("")
       setActive(true)
       setWarning(null)
+      setSaving(false)
     }
   }, [open])
 
-  const handleAdd = () => {
+  const endpointMap: Record<string, string> = {
+    Category: "/api/setup/standard-categories",
+    Title: "/api/setup/standard-titles",
+    Citation: "/api/setup/standards-citations",
+  }
+
+  const handleAdd = async () => {
     const trimmed = input.trim()
     if (!trimmed) return
 
     const exists = items.some(
-      (item) => item.toLowerCase() === trimmed.toLowerCase()
+      (item) => item.name.toLowerCase() === trimmed.toLowerCase()
     )
     if (exists) {
       setWarning(`${type} "${trimmed}" already exists.`)
       return
     }
 
-    setItems((prev) => [trimmed, ...prev])
-    setSelected(trimmed)
-    onClose()
+    const endpoint = endpointMap[type as string]
+    if (!endpoint) {
+      setWarning("Unknown type")
+      return
+    }
+
+    setSaving(true)
+    try {
+      const res = await fetch(`${API_BASE.replace(/\/$/, "")}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          name: trimmed, 
+          status: active ? "Active" : "Inactive" 
+        }),
+      })
+      
+      const body = await res.json()
+      if (!res.ok) {
+        const msg = body?.message || body?.error || 
+          (body?.errors && body.errors.map((e:any) => e.msg).join(", ")) || 
+          `HTTP ${res.status}`
+        setWarning(`Failed to add ${type?.toLowerCase()}: ${msg}`)
+        addToast({
+          type: "error",
+          title: "Failed to add",
+          message: `Could not add ${type?.toLowerCase()}: ${msg}`
+        })
+        setSaving(false)
+        return
+      }
+      
+      const created = body?.data
+      if (!created || typeof created.id === "undefined") {
+        const synthetic = { id: Date.now(), name: trimmed }
+        setItems((prev) => [synthetic, ...prev])
+        setSelected(String(synthetic.id))
+      } else {
+        const item: Lookup = { 
+          id: Number(created.id), 
+          name: String(created.name ?? trimmed) 
+        }
+        setItems((prev) => [item, ...prev])
+        setSelected(String(item.id))
+      }
+      
+      addToast({
+        type: "success",
+        title: "Success!",
+        message: `${type} "${trimmed}" has been added successfully.`
+      })
+      
+      onClose()
+    } catch (err: any) {
+      const errorMsg = `Network error: ${err?.message || String(err)}`
+      setWarning(errorMsg)
+      addToast({
+        type: "error",
+        title: "Network Error",
+        message: errorMsg
+      })
+      setSaving(false)
+    }
   }
 
   const handleReset = () => {
@@ -109,6 +188,7 @@ function AddItemModal({
             }}
             className="col-span-2 h-10 rounded border border-slate-300 px-3 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
             placeholder={type}
+            disabled={saving}
           />
         </div>
 
@@ -118,6 +198,7 @@ function AddItemModal({
             className="col-span-2 h-10 rounded border border-slate-300 px-3 dark:bg-slate-700 dark:text-slate-100 dark:border-slate-600"
             value={active ? "Active" : "Inactive"}
             onChange={(e) => setActive(e.target.value === "Active")}
+            disabled={saving}
           >
             <option>Active</option>
             <option>Inactive</option>
@@ -137,15 +218,17 @@ function AddItemModal({
             <tbody>
               {items.map((item, idx) => (
                 <tr
-                  key={idx}
+                  key={item.id}
                   className="odd:bg-white even:bg-slate-50 dark:odd:bg-slate-800 dark:even:bg-slate-700"
                 >
                   <td className="border border-slate-300 px-3 py-1">{idx + 1}</td>
-                  <td className="border border-slate-300 px-3 py-1">{item}</td>
+                  <td className="border border-slate-300 px-3 py-1">{item.name}</td>
                   <td className="border border-slate-300 px-3 py-1 text-center cursor-pointer hover:text-blue-600">
                     ✎
                   </td>
-                  <td className="border border-slate-300 px-3 py-1 text-center">✅</td>
+                  <td className="border border-slate-300 px-3 py-1 text-center">
+                    {item.status === 'Active' ? '✅' : '❌'}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -155,13 +238,15 @@ function AddItemModal({
         <div className="flex justify-end gap-3">
           <button
             onClick={handleAdd}
-            className="px-5 py-2 bg-sky-600 text-white rounded hover:bg-sky-700 transition"
+            disabled={saving}
+            className="px-5 py-2 bg-sky-600 text-white rounded hover:bg-sky-700 transition disabled:opacity-60"
           >
-            Add {type}
+            {saving ? "Saving..." : `Add ${type}`}
           </button>
           <button
             onClick={handleReset}
-            className="px-5 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition"
+            disabled={saving}
+            className="px-5 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition disabled:opacity-60"
           >
             Reset {type}
           </button>
@@ -178,9 +263,9 @@ function AddItemModal({
 }
 
 export default function StandardsPage() {
-  const [categories, setCategories] = React.useState<string[]>(initialCategories)
-  const [titles, setTitles] = React.useState<string[]>(initialTitles)
-  const [citations, setCitations] = React.useState<string[]>(initialCitations)
+  const [categories, setCategories] = React.useState<Lookup[]>([])
+  const [titles, setTitles] = React.useState<Lookup[]>([])
+  const [citations, setCitations] = React.useState<Lookup[]>([])
 
   const [category, setCategory] = React.useState<string>("")
   const [title, setTitle] = React.useState<string>("")
@@ -193,6 +278,98 @@ export default function StandardsPage() {
   >(null)
 
   const [errors, setErrors] = React.useState<Partial<Record<string, string>>>({})
+  const [loading, setLoading] = React.useState(true)
+  const [saving, setSaving] = React.useState(false)
+  const [toasts, setToasts] = React.useState<Toast[]>([])
+
+  const remaining = Math.max(0, maxChars - standardText.length)
+
+  // Toast system
+  const addToast = (toast: Omit<Toast, "id">) => {
+    const id = `${Date.now()}-${Math.random()}`
+    setToasts((prev) => [...prev, { ...toast, id }])
+    setTimeout(() => removeToast(id), 5000)
+  }
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }
+
+  // Load lookups on mount
+  React.useEffect(() => {
+    let mounted = true
+    async function loadLookups() {
+      try {
+        const urls = [
+          `${API_BASE.replace(/\/$/, "")}/api/setup/standard-categories?limit=1000&status=Active`,
+          `${API_BASE.replace(/\/$/, "")}/api/setup/standard-titles?limit=1000&status=Active`,
+          `${API_BASE.replace(/\/$/, "")}/api/setup/standards-citations?limit=1000&status=Active`,
+        ]
+        
+        const [catsRes, titlesRes, citesRes] = await Promise.all(
+          urls.map((u) => fetch(u))
+        )
+        
+        if (!mounted) return
+        
+        const [catsB, titlesB, citesB] = await Promise.all([
+          catsRes.json(),
+          titlesRes.json(),
+          citesRes.json(),
+        ])
+        
+        if (catsB?.data && Array.isArray(catsB.data) && mounted) {
+          setCategories(
+            catsB.data.map((r: any) => ({
+              id: Number(r.id),
+              name: String(r.name),
+              status: r.status || 'Active'
+            }))
+          )
+        }
+        
+        if (titlesB?.data && Array.isArray(titlesB.data) && mounted) {
+          setTitles(
+            titlesB.data.map((r: any) => ({
+              id: Number(r.id),
+              name: String(r.name),
+              status: r.status || 'Active'
+            }))
+          )
+        }
+        
+        if (citesB?.data && Array.isArray(citesB.data) && mounted) {
+          setCitations(
+            citesB.data.map((r: any) => ({
+              id: Number(r.id),
+              name: String(r.name),
+              status: r.status || 'Active'
+            }))
+          )
+        }
+
+        addToast({
+          type: "success",
+          title: "Data Loaded",
+          message: "Standards lookup data loaded successfully."
+        })
+      } catch (err) {
+        console.warn("Failed to load lookups:", err)
+        addToast({
+          type: "error",
+          title: "Loading Failed",
+          message: "Failed to load standards lookup data. Please refresh the page."
+        })
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+    
+    loadLookups()
+    return () => {
+      mounted = false
+    }
+  }, [])
 
   const resetForm = () => {
     setCategory("")
@@ -204,13 +381,57 @@ export default function StandardsPage() {
 
   const addStandard = async (e?: React.FormEvent) => {
     e?.preventDefault()
+    if (saving) return
+    
     setErrors({})
     try {
       await schema.validate(
         { category, title, citation, standardText },
         { abortEarly: false }
       )
-      console.log("Saved standard:", { category, title, citation, standardText })
+
+      setSaving(true)
+
+      // Send IDs to backend
+      const payload = {
+        category_id: parseInt(category, 10),
+        title_id: parseInt(title, 10),
+        citation_id: parseInt(citation, 10),
+        standard_text: standardText,
+        status: "Active",
+      }
+
+      console.log('📤 Submitting standard:', payload)
+
+      const res = await fetch(`${API_BASE.replace(/\/$/, "")}/api/setup/standards`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      
+      const body = await res.json()
+      if (!res.ok) {
+        const msg = body?.message || body?.error || 
+          (body?.errors && body.errors.map((e:any) => e.msg).join(", ")) || 
+          "Failed to save"
+        setErrors({ standardText: msg })
+        addToast({
+          type: "error",
+          title: "Failed to Save",
+          message: `Could not save standard: ${msg}`
+        })
+        setSaving(false)
+        return
+      }
+
+      console.log("✅ Standard saved:", body?.data ?? payload)
+      
+      addToast({
+        type: "success",
+        title: "Standard Created!",
+        message: "Your standard has been saved successfully."
+      })
+      
       resetForm()
     } catch (err: any) {
       const next: Partial<Record<string, string>> = {}
@@ -223,7 +444,16 @@ export default function StandardsPage() {
         next[err.path] = err.message
       }
       setErrors(next)
+      
+      addToast({
+        type: "error",
+        title: "Validation Error",
+        message: "Please fix the highlighted fields and try again."
+      })
+      
       window.scrollTo({ top: 0, behavior: "smooth" })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -233,7 +463,15 @@ export default function StandardsPage() {
     if (kind === "citation") setModalType("Citation")
   }
 
-  const remaining = Math.max(0, maxChars - standardText.length)
+  if (loading) {
+    return (
+      <div className="max-w-5xl mx-auto px-6 py-8">
+        <div className="text-center py-12">
+          <div className="text-slate-600 dark:text-slate-300">Loading standards data...</div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <>
@@ -282,18 +520,20 @@ export default function StandardsPage() {
                       errors.category ? "border-rose-500" : ""
                     }`}
                     data-has-value={category ? "true" : "false"}
+                    disabled={saving}
                   >
                     <option value="">Select a category...</option>
                     {categories.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
+                      <option key={c.id} value={String(c.id)}>
+                        {c.name}
                       </option>
                     ))}
                   </select>
                   <button
                     type="button"
                     onClick={() => addItemPrompt("category")}
-                    className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white"
+                    className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white hover:bg-sky-600 transition"
+                    disabled={saving}
                   >
                     Add Category
                   </button>
@@ -318,18 +558,20 @@ export default function StandardsPage() {
                       errors.title ? "border-rose-500" : ""
                     }`}
                     data-has-value={title ? "true" : "false"}
+                    disabled={saving}
                   >
                     <option value="">Select a title...</option>
                     {titles.map((t) => (
-                      <option key={t} value={t}>
-                        {t}
+                      <option key={t.id} value={String(t.id)}>
+                        {t.name}
                       </option>
                     ))}
                   </select>
                   <button
                     type="button"
                     onClick={() => addItemPrompt("title")}
-                    className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white"
+                    className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white hover:bg-sky-600 transition"
+                    disabled={saving}
                   >
                     Add Title
                   </button>
@@ -354,18 +596,20 @@ export default function StandardsPage() {
                       errors.citation ? "border-rose-500" : ""
                     }`}
                     data-has-value={citation ? "true" : "false"}
+                    disabled={saving}
                   >
                     <option value="">Select a citation...</option>
                     {citations.map((c) => (
-                      <option key={c} value={c}>
-                        {c}
+                      <option key={c.id} value={String(c.id)}>
+                        {c.name}
                       </option>
                     ))}
                   </select>
                   <button
                     type="button"
                     onClick={() => addItemPrompt("citation")}
-                    className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white"
+                    className="h-10 px-4 min-w-[140px] text-sm rounded bg-sky-500 text-white hover:bg-sky-600 transition"
+                    disabled={saving}
                   >
                     Add Citation
                   </button>
@@ -393,6 +637,7 @@ export default function StandardsPage() {
                       errors.standardText ? "border-rose-500" : ""
                     }`}
                     placeholder="Enter standard text..."
+                    disabled={saving}
                   />
                   <div className="text-xs text-slate-500 dark:text-slate-300 mt-2">
                     {remaining} Character(s) Remaining
@@ -408,14 +653,16 @@ export default function StandardsPage() {
               <div className="flex items-center gap-3 pt-3">
                 <button
                   type="submit"
-                  className="h-10 px-4 rounded bg-emerald-600 text-white shadow-sm"
+                  disabled={saving}
+                  className="h-10 px-4 rounded bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 transition disabled:opacity-60"
                 >
-                  Add Standard
+                  {saving ? "Saving..." : "Add Standard"}
                 </button>
                 <button
                   type="button"
                   onClick={resetForm}
-                  className="h-10 px-4 rounded border bg-white dark:bg-transparent dark:border-slate-700 dark:text-slate-200"
+                  disabled={saving}
+                  className="h-10 px-4 rounded border bg-white dark:bg-transparent dark:border-slate-700 dark:text-slate-200 hover:bg-slate-50 transition disabled:opacity-60"
                 >
                   Reset Standard
                 </button>
@@ -455,7 +702,59 @@ export default function StandardsPage() {
               ? setCitation
               : () => {}
           }
+          addToast={addToast}
         />
+
+        {/* Toast notifications */}
+        {toasts.length > 0 && (
+          <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-3 max-w-md">
+            {toasts.map((toast) => (
+              <div
+                key={toast.id}
+                className={`p-4 rounded-lg shadow-lg border transition-all duration-300 ${
+                  toast.type === "success"
+                    ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
+                    : toast.type === "error"
+                    ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800"
+                    : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <h4
+                      className={`font-semibold text-sm ${
+                        toast.type === "success"
+                          ? "text-emerald-900 dark:text-emerald-100"
+                          : toast.type === "error"
+                          ? "text-rose-900 dark:text-rose-100"
+                          : "text-blue-900 dark:text-blue-100"
+                      }`}
+                    >
+                      {toast.title}
+                    </h4>
+                    <p
+                      className={`text-sm mt-1 ${
+                        toast.type === "success"
+                          ? "text-emerald-700 dark:text-emerald-200"
+                          : toast.type === "error"
+                          ? "text-rose-700 dark:text-rose-200"
+                          : "text-blue-700 dark:text-blue-200"
+                      }`}
+                    >
+                      {toast.message}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => removeToast(toast.id)}
+                    className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
 
         <footer className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">
           © 2025 CAM powered by Goolean Technologies NA LLC
