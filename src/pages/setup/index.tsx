@@ -1,6 +1,6 @@
 "use client"
 
-import React from "react"
+import React, { useEffect, useState } from "react"
 import Link from "@/components/link"
 import { MetroCard } from "@/components/metro-card"
 import {
@@ -17,43 +17,125 @@ import {
   Legend,
 } from "recharts"
 
+const API_BASE = typeof window !== 'undefined' 
+  ? (window as any).__ENV__?.NEXT_PUBLIC_API_BASE || 'http://localhost:3000'
+  : 'http://localhost:3000'
+
+type DashboardStats = {
+  vendors: { total: number; active: number; pending: number; inactive: number }
+  users: { total: number; active: number; pending: number; inactive: number }
+  userGroups: { total: number; active: number; inactive: number }
+  risks: { total: number; active: number; inactive: number }
+  standards: { total: number; active: number; inactive: number }
+  criteria: { total: number; active: number }
+  levels: { total: number; active: number }
+}
+
 export default function SetupIndex() {
+  const [stats, setStats] = useState<DashboardStats | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    loadDashboardStats()
+  }, [])
+
+  const loadDashboardStats = async () => {
+    try {
+      setLoading(true)
+      const res = await fetch(`${API_BASE}/api/setup/dashboard/stats`)
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      
+      const data = await res.json()
+      
+      if (data.success) {
+        setStats(data.data)
+      } else {
+        throw new Error(data.error || 'Failed to load dashboard stats')
+      }
+    } catch (err: any) {
+      console.error('Failed to load dashboard stats:', err)
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="min-h-[72vh] max-w-7xl mx-auto px-6 py-8">
+        <div className="text-center py-12">
+          <div className="text-slate-600 dark:text-slate-300">Loading dashboard...</div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-[72vh] max-w-7xl mx-auto px-6 py-8">
+        <div className="text-center py-12">
+          <div className="text-red-600">Error: {error}</div>
+          <button 
+            onClick={loadDashboardStats}
+            className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  if (!stats) {
+    return (
+      <div className="min-h-[72vh] max-w-7xl mx-auto px-6 py-8">
+        <div className="text-center py-12">
+          <div className="text-slate-600 dark:text-slate-300">No data available</div>
+        </div>
+      </div>
+    )
+  }
+
   const vendorSnapshot = [
-    { label: "Vendors", value: 42 },
-    { label: "Active", value: 38 },
-    { label: "Pending", value: 4 },
+    { label: "Vendors", value: stats.vendors.total },
+    { label: "Active", value: stats.vendors.active },
+    { label: "Pending", value: stats.vendors.pending },
   ]
 
   const userSnapshot = [
-    { label: "Total Users", value: 1247 },
-    { label: "Active", value: 1180 },
-    { label: "Pending", value: 67 },
+    { label: "Total Users", value: stats.users.total },
+    { label: "Active", value: stats.users.active },
+    { label: "Pending", value: stats.users.pending },
   ]
 
   const userGroupsSnapshot = [
-    { label: "Groups", value: 87 },
-    { label: "With Policies", value: 54 },
-    { label: "No Owners", value: 3 },
+    { label: "Groups", value: stats.userGroups.total },
+    { label: "Active", value: stats.userGroups.active },
+    { label: "Inactive", value: stats.userGroups.inactive },
   ]
 
   const riskSnapshot = [
-    { label: "Open Risks", value: 12 },
-    { label: "Mitigated", value: 5 },
-    { label: "Accepted", value: 2 },
+    { label: "Risk Entries", value: stats.risks.total },
+    { label: "Active", value: stats.risks.active },
+    { label: "Criteria", value: stats.criteria.active },
   ]
 
   const standardsSnapshot = [
-    { label: "Standards", value: 29 },
-    { label: "Citations", value: 112 },
-    { label: "Reviews", value: 7 },
+    { label: "Standards", value: stats.standards.total },
+    { label: "Active", value: stats.standards.active },
+    { label: "Inactive", value: stats.standards.inactive },
   ]
 
   const summaryData = [
-    { name: "Vendors", value: vendorSnapshot[0].value },
-    { name: "Users", value: userSnapshot[0].value },
-    { name: "Groups", value: userGroupsSnapshot[0].value },
-    { name: "Standards", value: standardsSnapshot[0].value },
-    { name: "Open Risks", value: riskSnapshot[0].value },
+    { name: "Vendors", value: stats.vendors.total },
+    { name: "Users", value: stats.users.total },
+    { name: "Groups", value: stats.userGroups.total },
+    { name: "Standards", value: stats.standards.total },
+    { name: "Risks", value: stats.risks.total },
   ]
 
   const barData = summaryData.map((d) => ({ name: d.name, value: d.value }))
@@ -66,6 +148,13 @@ export default function SetupIndex() {
           <h1 className="text-2xl font-semibold">Setup</h1>
           <p className="mt-1 text-sm text-muted-foreground">Core configuration and user management.</p>
         </div>
+        <button 
+          onClick={loadDashboardStats}
+          className="px-3 py-1 text-sm border rounded hover:bg-muted/50"
+          disabled={loading}
+        >
+          {loading ? 'Refreshing...' : 'Refresh'}
+        </button>
       </header>
 
       {/* Top row: single responsive row without horizontal scroller */}
@@ -84,7 +173,7 @@ export default function SetupIndex() {
           </Link>
 
           <Link href="/setup/risk-management" className="block h-full">
-            <MetroCard title="Risks" data={riskSnapshot as any} updateInterval={7000} size="medium" />
+            <MetroCard title="Risk Management" data={riskSnapshot as any} updateInterval={7000} size="medium" />
           </Link>
 
           <Link href="/setup/standards-and-citation-management" className="block h-full">
@@ -134,7 +223,61 @@ export default function SetupIndex() {
 
       {/* Setup Overview */}
       <section className="mt-6">
-        
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="border rounded-lg p-4">
+            <h4 className="text-sm font-medium text-muted-foreground mb-3">Recent Activity</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Risk Management Entries</span>
+                <span className="font-medium">{stats.risks.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Active Criteria</span>
+                <span className="font-medium">{stats.criteria.active}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Risk Levels</span>
+                <span className="font-medium">{stats.levels.active}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="border rounded-lg p-4">
+            <h4 className="text-sm font-medium text-muted-foreground mb-3">User Management</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Total Users</span>
+                <span className="font-medium">{stats.users.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>User Groups</span>
+                <span className="font-medium">{stats.userGroups.total}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Pending Users</span>
+                <span className="font-medium text-amber-600">{stats.users.pending}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="border rounded-lg p-4">
+            <h4 className="text-sm font-medium text-muted-foreground mb-3">System Health</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span>Active Vendors</span>
+                <span className="font-medium text-green-600">{stats.vendors.active}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Active Standards</span>
+                <span className="font-medium text-green-600">{stats.standards.active}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Pending Items</span>
+                <span className="font-medium text-amber-600">{stats.vendors.pending + stats.users.pending}</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   )
