@@ -4,6 +4,10 @@ import React from "react"
 import Link from "@/components/link"
 import * as yup from "yup"
 
+const API_BASE = typeof window !== 'undefined' 
+  ? (window as any).__ENV__?.NEXT_PUBLIC_API_BASE || 'http://localhost:3000'
+  : 'http://localhost:3000'
+
 const groupSchema = yup
   .object()
   .strict(true)
@@ -15,31 +19,94 @@ const groupSchema = yup
       .min(1, "Add at least one group value"),
   })
 
+type Toast = {
+  id: string
+  type: "success" | "error" | "info"
+  title: string
+  message: string
+}
+
 export default function AddGroupPage() {
   const [groupName, setGroupName] = React.useState("")
   const [valueInput, setValueInput] = React.useState("")
   const [values, setValues] = React.useState<string[]>([])
   const [errors, setErrors] = React.useState<{ groupName?: string; valueInput?: string; values?: string }>({})
   const [isSaving, setIsSaving] = React.useState(false)
+  const [loading, setLoading] = React.useState(true)
+  const [editId, setEditId] = React.useState<string | null>(null)
+  const [isEdit, setIsEdit] = React.useState(false)
+  const [toasts, setToasts] = React.useState<Toast[]>([])
 
-  // load for edit if id present (optional)
+  // Toast system
+  const addToast = (toast: Omit<Toast, "id">) => {
+    const id = `${Date.now()}-${Math.random()}`
+    setToasts((prev) => [...prev, { ...toast, id }])
+    setTimeout(() => removeToast(id), 5000)
+  }
+
+  const removeToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id))
+  }
+
+  // Check for edit mode and load data
   React.useEffect(() => {
-    if (typeof window === "undefined") return
-    const params = new URLSearchParams(window.location.search)
-    const id = params.get("id")
-    if (!id) return
-    try {
-      const raw = localStorage.getItem("userGroups")
-      const groups = raw ? JSON.parse(raw) : []
-      const found = groups.find((g: any) => String(g.id) === String(id))
-      if (found) {
-        setGroupName(found.name ?? "")
-        setValues(found.values ? (Array.isArray(found.values) ? found.values : String(found.values).split(",").map((s:string)=>s.trim())) : [])
+    let isMounted = true
+    
+    const checkEditMode = () => {
+      if (typeof window === 'undefined') return
+      
+      const params = new URLSearchParams(window.location.search)
+      const idParam = params.get("id")
+      
+      if (idParam && isMounted) {
+        setEditId(idParam)
+        setIsEdit(true)
+        loadGroupData(idParam)
+      } else if (isMounted) {
+        setLoading(false)
       }
-    } catch {
-      // ignore
+    }
+    
+    checkEditMode()
+    
+    return () => {
+      isMounted = false
     }
   }, [])
+
+  // Load group data for editing
+  const loadGroupData = async (id: string) => {
+    try {
+      const url = `${API_BASE.replace(/\/$/, '')}/api/setup/user-group/${id}`
+      const res = await fetch(url)
+      
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status}`)
+      }
+      
+      const response = await res.json()
+      const groupData = response.data
+      
+      // Map backend fields to form state
+      setGroupName(groupData.group_name || '')
+      setValues(Array.isArray(groupData.group_values) ? groupData.group_values : [])
+      
+      addToast({
+        type: "success",
+        title: "Loaded",
+        message: "Group data loaded for editing."
+      })
+    } catch (err: any) {
+      console.error('Failed to load group:', err)
+      addToast({
+        type: "error",
+        title: "Load failed",
+        message: err.message || "Failed to load group data"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const resetErrors = () => setErrors({})
 
@@ -57,10 +124,14 @@ export default function AddGroupPage() {
       setErrors(prev => ({ ...prev, valueInput: "Max 20 characters" }))
       return
     }
-    if (values.includes(v)) {
+    
+    // Check for duplicates (case-insensitive)
+    const existingLower = values.map(val => val.toLowerCase())
+    if (existingLower.includes(v.toLowerCase())) {
       setErrors(prev => ({ ...prev, valueInput: "Duplicate value" }))
       return
     }
+    
     setValues(prev => [...prev, v])
     setValueInput("")
     setErrors(prev => ({ ...prev, valueInput: undefined, values: undefined }))
@@ -84,6 +155,8 @@ export default function AddGroupPage() {
   const handleSave = async () => {
     if (isSaving) return
     resetErrors()
+    
+    // Validate form
     try {
       await groupSchema.validate({ groupName, values }, { abortEarly: false })
     } catch (err: any) {
@@ -103,37 +176,84 @@ export default function AddGroupPage() {
     }
 
     setIsSaving(true)
+    
     try {
-      const raw = localStorage.getItem("userGroups")
-      const groups = raw ? JSON.parse(raw) : []
-      const params = new URLSearchParams(window.location.search)
-      const idParam = params.get("id")
-
-      if (idParam) {
-        const updated = groups.map((g: any) =>
-          String(g.id) === String(idParam) ? { ...g, name: groupName.trim(), values } : g
-        )
-        localStorage.setItem("userGroups", JSON.stringify(updated))
-      } else {
-        const newGroup = { id: Date.now(), name: groupName.trim(), values }
-        groups.unshift(newGroup)
-        localStorage.setItem("userGroups", JSON.stringify(groups))
+      // Prepare payload for backend
+      const payload = {
+        groupName: groupName.trim(),
+        groupValues: values,
+        status: 'Active'
       }
-      window.location.href = "/setup/user-groups-setup"
-    } catch (err) {
-      console.error(err)
-      setErrors(prev => ({ ...prev, values: "Save failed" }))
+
+      console.log('📤 Submitting payload:', payload)
+
+      const url = isEdit 
+        ? `${API_BASE.replace(/\/$/, '')}/api/setup/user-group/${editId}`
+        : `${API_BASE.replace(/\/$/, '')}/api/setup/user-group`
+      
+      const method = isEdit ? "PUT" : "POST"
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+
+      const responseData = await res.json()
+
+      if (!res.ok) {
+        console.error('❌ API Error:', responseData)
+        const errorMessage = responseData.errors 
+          ? responseData.errors.map((e: any) => e.msg).join(', ')
+          : responseData.error || responseData.message || `HTTP ${res.status}`
+        throw new Error(errorMessage)
+      }
+
+      console.log('✅ API Success:', responseData)
+
+      addToast({
+        type: "success",
+        title: "Success!",
+        message: isEdit ? "Group updated successfully." : "Group created successfully."
+      })
+      
+      setTimeout(() => {
+        window.location.href = "/setup/user-groups-setup"
+      }, 1500)
+    } catch (err: any) {
+      console.error("❌ Submit error:", err)
+      addToast({
+        type: "error",
+        title: "Failed to save",
+        message: err?.message || "An unknown error occurred"
+      })
     } finally {
       setIsSaving(false)
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto px-6 py-8">
+        <div className="text-center py-12">
+          <div className="text-slate-600 dark:text-slate-300">Loading group data...</div>
+        </div>
+      </div>
+    )
   }
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-8">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Add Group</h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Create a group and its allowed values (shown as tags).</p>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+            {isEdit ? "Edit Group" : "Add Group"}
+          </h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400">
+            {isEdit ? "Update the group and its allowed values." : "Create a group and its allowed values (shown as tags)."}
+          </p>
         </div>
         <Link href="/setup/user-groups-setup" className="px-3 py-2 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-md">Back</Link>
       </div>
@@ -217,13 +337,65 @@ export default function AddGroupPage() {
             <button
               type="button"
               onClick={handleSave}
-              className={`px-4 py-2 rounded-md text-white transition-colors ${isSaving ? "bg-slate-400" : "bg-sky-600 hover:bg-sky-700"}`}
+              disabled={!canSave || isSaving}
+              className={`px-4 py-2 rounded-md text-white transition-colors ${!canSave || isSaving ? "bg-slate-400 cursor-not-allowed" : "bg-sky-600 hover:bg-sky-700"}`}
             >
-              {isSaving ? "Saving…" : "Save Group"}
+              {isSaving ? "Saving…" : (isEdit ? "Update Group" : "Save Group")}
             </button>
           </div>
         </div>
       </div>
+
+      {/* Toast notifications */}
+      {toasts.length > 0 && (
+        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-3 max-w-md">
+          {toasts.map((toast) => (
+            <div
+              key={toast.id}
+              className={`p-4 rounded-lg shadow-lg border ${
+                toast.type === "success"
+                  ? "bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800"
+                  : toast.type === "error"
+                  ? "bg-rose-50 dark:bg-rose-900/20 border-rose-200 dark:border-rose-800"
+                  : "bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <h4
+                    className={`font-semibold text-sm ${
+                      toast.type === "success"
+                        ? "text-emerald-900 dark:text-emerald-100"
+                        : toast.type === "error"
+                        ? "text-rose-900 dark:text-rose-100"
+                        : "text-blue-900 dark:text-blue-100"
+                    }`}
+                  >
+                    {toast.title}
+                  </h4>
+                  <p
+                    className={`text-sm mt-1 ${
+                      toast.type === "success"
+                        ? "text-emerald-700 dark:text-emerald-200"
+                        : toast.type === "error"
+                        ? "text-rose-700 dark:text-rose-200"
+                        : "text-blue-700 dark:text-blue-200"
+                    }`}
+                  >
+                    {toast.message}
+                  </p>
+                </div>
+                <button
+                  onClick={() => removeToast(toast.id)}
+                  className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

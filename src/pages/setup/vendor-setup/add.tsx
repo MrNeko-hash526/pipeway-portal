@@ -116,6 +116,12 @@ const schema = yup.object({
 })
 
 export default function AddOrganizationPage() {
+  // Check if editing (URL param ?id=123)
+  const [vendorId, setVendorId] = React.useState<string | null>(null)
+  const [isEdit, setIsEdit] = React.useState(false)
+  const [loading, setLoading] = React.useState(false)
+  const [existingAttachments, setExistingAttachments] = React.useState<any[]>([])
+
   const [form, setForm] = React.useState<FormState>({
     organizationName: "",
     organizationCode: "",
@@ -147,6 +153,85 @@ export default function AddOrganizationPage() {
   const [errors, setErrors] = React.useState<Record<string, string>>({})
   const [submitting, setSubmitting] = React.useState(false)
   const [toasts, setToasts] = React.useState<Toast[]>([])
+
+  // Check URL for edit mode
+  React.useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const id = urlParams.get('id')
+    if (id) {
+      setVendorId(id)
+      setIsEdit(true)
+    }
+  }, [])
+
+  // Load vendor data when editing
+  React.useEffect(() => {
+    if (!vendorId || !isEdit) return
+
+    let mounted = true
+    setLoading(true)
+
+    const loadVendor = async () => {
+      try {
+        const url = `${API_BASE.replace(/\/$/, '')}/api/setup/vendor/${vendorId}`
+        const res = await fetch(url)
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json()
+
+        if (!mounted) return
+
+        // Map backend fields to form state
+        setForm({
+          organizationName: data.organization_name || '',
+          organizationCode: data.organization_code || '',
+          type: data.type || '',
+          description: data.description || '',
+          riskLevel: data.risk_level || '',
+          address1: data.address1 || '',
+          address2: data.address2 || '',
+          address3: data.address3 || '',
+          country: data.country || '',
+          countryOther: data.country_other || '',
+          state: data.state || '',
+          stateOther: data.state_other || '',
+          city: data.city || '',
+          zip: data.zip || '',
+          website: data.website || '',
+          supportNumber: data.support_number || '',
+          contactFirst: data.contact_first || '',
+          contactLast: data.contact_last || '',
+          phoneCountryCode: data.phone_country_code || '+1',
+          workPhone: data.work_phone || '',
+          email: data.email || '',
+          confirmEmail: data.email || '', // Set same as email for edit
+          category: data.category || '',
+          status: data.status || 'Active',
+          attachments: [], // New files only
+        })
+
+        setExistingAttachments(data.attachments || [])
+        
+        addToast({
+          type: "success",
+          title: "Loaded",
+          message: "Organization data loaded for editing."
+        })
+
+      } catch (err: any) {
+        console.error('Failed to load vendor:', err)
+        addToast({
+          type: "error",
+          title: "Load failed",
+          message: err.message || "Failed to load organization data"
+        })
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    loadVendor()
+    return () => { mounted = false }
+  }, [vendorId, isEdit])
 
   const addToast = (toast: Omit<Toast, "id">) => {
     const id = `${Date.now()}-${Math.random()}`
@@ -249,9 +334,14 @@ export default function AddOrganizationPage() {
         fd.append("attachments", f, f.name)
       }
 
-      const url = API_BASE.replace(/\/$/, '') + "/api/setup/vendor"
+      const url = isEdit 
+        ? `${API_BASE.replace(/\/$/, '')}/api/setup/vendor/${vendorId}`
+        : `${API_BASE.replace(/\/$/, '')}/api/setup/vendor`
+      
+      const method = isEdit ? "PUT" : "POST"
+
       const res = await fetch(url, {
-        method: "POST",
+        method,
         body: fd,
       })
 
@@ -265,7 +355,7 @@ export default function AddOrganizationPage() {
       addToast({
         type: "success",
         title: "Success!",
-        message: "Organization added successfully."
+        message: isEdit ? "Organization updated successfully." : "Organization added successfully."
       })
       
       setTimeout(() => {
@@ -290,10 +380,22 @@ export default function AddOrganizationPage() {
   const labelClass = "text-xs font-medium text-slate-700 dark:text-slate-300"
   const sectionTitle = "text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2"
 
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="text-center py-12">
+          <div className="text-slate-600">Loading organization data...</div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">Add Organization</h1>
+        <h1 className="text-2xl font-semibold text-slate-900 dark:text-slate-100">
+          {isEdit ? 'Edit Organization' : 'Add Organization'}
+        </h1>
         <Link
           href="/setup/vendor-setup"
           className="text-sm text-slate-700 dark:text-slate-200 border rounded px-3 py-2 bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700"
@@ -642,7 +744,32 @@ export default function AddOrganizationPage() {
           {/* Attachments */}
           <div className="border-t border-slate-200 dark:border-slate-800 pt-6">
             <h2 className={sectionTitle}>Attachments</h2>
+            
+            {/* Existing attachments (edit mode) */}
+            {isEdit && existingAttachments.length > 0 && (
+              <div className="mb-4">
+                <h3 className="text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">Existing Attachments:</h3>
+                <div className="space-y-1">
+                  {existingAttachments.map((att, i) => (
+                    <div key={i} className="flex items-center gap-2 text-sm">
+                      <span className="text-slate-600 dark:text-slate-400">📎</span>
+                      <span className="text-slate-700 dark:text-slate-300">
+                        {att.filename || att.original_name || 'Unknown file'}
+                      </span>
+                      <span className="text-xs text-slate-500">
+                        ({att.file_size ? `${Math.round(att.file_size / 1024)} KB` : 'unknown size'})
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* New attachments */}
             <div className="border rounded p-4 bg-slate-50 dark:bg-slate-800 border-slate-200 dark:border-slate-700">
+              <label className="block text-sm font-medium text-slate-600 dark:text-slate-400 mb-2">
+                {isEdit ? 'Add New Attachments:' : 'Attachments:'}
+              </label>
               <input
                 type="file"
                 multiple
@@ -664,19 +791,21 @@ export default function AddOrganizationPage() {
 
           {/* Actions */}
           <div className="flex justify-end gap-3 border-t border-slate-200 dark:border-slate-800 pt-6">
-            <button
-              type="button"
-              onClick={resetForm}
-              className="px-4 py-2 border rounded bg-rose-600 hover:bg-rose-700 text-white text-sm"
-            >
-              Reset
-            </button>
+            {!isEdit && (
+              <button
+                type="button"
+                onClick={resetForm}
+                className="px-4 py-2 border rounded bg-rose-600 hover:bg-rose-700 text-white text-sm"
+              >
+                Reset
+              </button>
+            )}
             <button
               type="submit"
               disabled={submitting}
               className="px-4 py-2 border rounded bg-sky-600 hover:bg-sky-700 text-white text-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {submitting ? "Saving..." : "Add Organization"}
+              {submitting ? "Saving..." : isEdit ? "Update Organization" : "Add Organization"}
             </button>
           </div>
         </div>
