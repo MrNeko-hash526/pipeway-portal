@@ -154,6 +154,10 @@ export default function AddOrganizationPage() {
   const [submitting, setSubmitting] = React.useState(false)
   const [toasts, setToasts] = React.useState<Toast[]>([])
 
+  const [emailError, setEmailError] = React.useState<string>('')
+  const [phoneError, setPhoneError] = React.useState<string>('')
+  const [validationTimeout, setValidationTimeout] = React.useState<NodeJS.Timeout | null>(null)
+
   // Check URL for edit mode
   React.useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search)
@@ -272,7 +276,7 @@ export default function AddOrganizationPage() {
     }
   }
 
-  const resetForm = () =>
+  const resetForm = () => {
     setForm({
       organizationName: "",
       organizationCode: "",
@@ -300,14 +304,118 @@ export default function AddOrganizationPage() {
       status: "Active",
       attachments: [],
     })
+    
+    // Clear validation errors
+    setEmailError('')
+    setPhoneError('')
+    setErrors({})
+    
+    if (validationTimeout) {
+      clearTimeout(validationTimeout)
+      setValidationTimeout(null)
+    }
+  }
 
   const handleFiles = (files: FileList | null) => {
     if (!files) return
     update("attachments", [...form.attachments, ...Array.from(files)])
   }
 
+  const validateEmailReal = async (email: string) => {
+    if (!email || !isValidEmail(email)) {
+      setEmailError('')
+      return
+    }
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/setup/vendor/validate-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          email, 
+          excludeId: vendorId ? parseInt(vendorId) : null 
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (data.success && data.exists) {
+        setEmailError('This email is already registered in the system')
+      } else {
+        setEmailError('')
+      }
+    } catch (err) {
+      console.error('Email validation error:', err)
+    }
+  }
+
+  const validatePhoneReal = async (countryCode: string, phone: string) => {
+    if (!countryCode || !phone) {
+      setPhoneError('')
+      return
+    }
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/setup/vendor/validate-phone`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          phoneCountryCode: countryCode,
+          workPhone: phone,
+          excludeId: vendorId ? parseInt(vendorId) : null 
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (data.success && data.exists) {
+        setPhoneError('This phone number is already registered in the system')
+      } else {
+        setPhoneError('')
+      }
+    } catch (err) {
+      console.error('Phone validation error:', err)
+    }
+  }
+
+  const debouncedEmailValidation = (email: string) => {
+    if (validationTimeout) {
+      clearTimeout(validationTimeout)
+    }
+    
+    const timeout = setTimeout(() => {
+      validateEmailReal(email)
+    }, 500)
+    
+    setValidationTimeout(timeout)
+  }
+
+  const debouncedPhoneValidation = (countryCode: string, phone: string) => {
+    if (validationTimeout) {
+      clearTimeout(validationTimeout)
+    }
+    
+    const timeout = setTimeout(() => {
+      validatePhoneReal(countryCode, phone)
+    }, 500)
+    
+    setValidationTimeout(timeout)
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Check for real-time validation errors before proceeding
+    if (emailError || phoneError) {
+      addToast({
+        type: "error",
+        title: "Validation Error",
+        message: "Please fix the email or phone number errors before submitting."
+      })
+      window.scrollTo({ top: 140, behavior: "smooth" })
+      return
+    }
+    
     const ok = await validate()
     if (!ok) {
       window.scrollTo({ top: 140, behavior: "smooth" })
@@ -347,7 +455,25 @@ export default function AddOrganizationPage() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
-        const msg = body.error || (body.errors ? JSON.stringify(body.errors) : `HTTP ${res.status}`)
+        
+        // Handle backend validation errors
+        if (body.errors && Array.isArray(body.errors)) {
+          const errorMessages = body.errors.join(', ')
+          
+          // Check for specific validation errors
+          body.errors.forEach((error: string) => {
+            if (error.includes('email already exists')) {
+              setEmailError(error)
+            }
+            if (error.includes('phone number already exists')) {
+              setPhoneError(error)
+            }
+          })
+          
+          throw new Error(errorMessages)
+        }
+        
+        const msg = body.error || `HTTP ${res.status}`
         throw new Error(msg)
       }
 
@@ -379,6 +505,15 @@ export default function AddOrganizationPage() {
     "border-slate-200 bg-white text-slate-900 placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:placeholder:text-slate-500"
   const labelClass = "text-xs font-medium text-slate-700 dark:text-slate-300"
   const sectionTitle = "text-sm font-semibold text-slate-700 dark:text-slate-200 mb-2"
+
+  // Add this useEffect to cleanup timeouts when component unmounts
+  React.useEffect(() => {
+    return () => {
+      if (validationTimeout) {
+        clearTimeout(validationTimeout)
+      }
+    }
+  }, [])
 
   if (loading) {
     return (
@@ -703,12 +838,26 @@ export default function AddOrganizationPage() {
                 </label>
                 <input
                   value={form.workPhone}
-                  onChange={(e) => update("workPhone", e.target.value)}
-                  className={`${inputBase} ${inputTheme} max-w-xs`}
+                  onChange={(e) => {
+                    update("workPhone", e.target.value)
+                    // Trigger real-time phone validation
+                    if (form.phoneCountryCode) {
+                      debouncedPhoneValidation(form.phoneCountryCode, e.target.value)
+                    }
+                  }}
+                  className={`${inputBase} ${inputTheme} max-w-xs ${
+                    errors.workPhone || phoneError ? "border-rose-500" : ""
+                  }`}
                   placeholder="Work phone"
                   maxLength={10}
                 />
                 {renderWarning("workPhone")}
+                {phoneError && (
+                  <p className="text-sm text-rose-600 dark:text-rose-400 mt-1">⚠️ {phoneError}</p>
+                )}
+                {form.phoneCountryCode && form.workPhone && !phoneError && !errors.workPhone && (
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400 mt-1">✅ Phone is available</p>
+                )}
               </div>
 
               <div className="flex-1 min-w-[180px]">
@@ -718,11 +867,23 @@ export default function AddOrganizationPage() {
                 <input
                   type="email"
                   value={form.email}
-                  onChange={(e) => update("email", e.target.value)}
-                  className={`${inputBase} ${inputTheme}`}
+                  onChange={(e) => {
+                    update("email", e.target.value)
+                    // Trigger real-time email validation
+                    debouncedEmailValidation(e.target.value)
+                  }}
+                  className={`${inputBase} ${inputTheme} ${
+                    errors.email || emailError ? "border-rose-500" : ""
+                  }`}
                   placeholder="abc@example.com"
                 />
                 {renderWarning("email")}
+                {emailError && (
+                  <p className="text-sm text-rose-600 dark:text-rose-400 mt-1">⚠️ {emailError}</p>
+                )}
+                {form.email && !emailError && !errors.email && isValidEmail(form.email) && (
+                  <p className="text-sm text-emerald-600 dark:text-emerald-400 mt-1">✅ Email is available</p>
+                )}
               </div>
 
               <div className="flex-1 min-w-[180px]">
@@ -857,4 +1018,9 @@ export default function AddOrganizationPage() {
       )}
     </div>
   )
+}
+
+// Helper function to validate email format
+const isValidEmail = (email: string) => {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
 }
