@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react"
-import { Pencil, Trash2, PlusCircle, XCircle, DownloadCloud } from "lucide-react"
+import { Pencil, Trash2, PlusCircle, XCircle, DownloadCloud, RotateCcw, RefreshCw } from "lucide-react"
 import * as yup from "yup"
 
 const API_BASE = typeof window !== 'undefined' 
@@ -14,12 +14,14 @@ type Row = {
   level: number
   exception: string
   active: boolean
+  deleted?: boolean
 }
 
 type Criteria = {
   id: number
   name: string
   status: string
+  deleted?: boolean
 }
 
 type LevelOption = {
@@ -27,6 +29,7 @@ type LevelOption = {
   value: number
   label: string
   range?: { min: number; max: number }
+  deleted?: boolean
 }
 
 type Toast = {
@@ -59,7 +62,8 @@ export default function RiskManagement() {
 
   // search / filter
   const [search, setSearch] = useState<string>("")
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all")
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive" | "deleted">("all")
+  const [includeDeleted, setIncludeDeleted] = useState<boolean>(false)
 
   // criteria / level option stores
   const [criteriaOptions, setCriteriaOptions] = useState<Criteria[]>([])
@@ -90,6 +94,10 @@ export default function RiskManagement() {
   // toasts
   const [toasts, setToasts] = useState<Toast[]>([])
 
+  // 🔥 NEW: Loading states for individual operations
+  const [restoring, setRestoring] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState<Set<string>>(new Set())
+
   // auto-dismiss non-confirm toasts
   useEffect(() => {
     if (!toasts.length) return
@@ -111,17 +119,25 @@ export default function RiskManagement() {
   // Load data from backend
   useEffect(() => {
     loadData()
-  }, [])
+  }, [includeDeleted, statusFilter]) // <-- reload when status filter changes
 
+  // 🔥 UPDATED: Better error handling and loading states
   const loadData = async () => {
     setLoading(true)
     try {
-      await Promise.all([
+      const results = await Promise.allSettled([
         loadRiskManagement(),
         loadCriteria(),
         loadLevels()
       ])
-      pushToast("Data loaded successfully", { type: "success" })
+      
+      const failures = results.filter(r => r.status === 'rejected')
+      if (failures.length > 0) {
+        console.error('Some data failed to load:', failures)
+        pushToast(`${failures.length} data source(s) failed to load`, { type: "error" })
+      } else {
+        pushToast("Data loaded successfully", { type: "success" })
+      }
     } catch (err) {
       console.error('Failed to load data:', err)
       pushToast("Failed to load data", { type: "error" })
@@ -130,96 +146,142 @@ export default function RiskManagement() {
     }
   }
 
+  const buildApiStatus = () => {
+    // map UI statusFilter to API "status" param and includeDeleted flag
+    // when user selects "deleted" we ask for includeDeleted=true and status=All
+    if (statusFilter === "all") return { status: 'All', includeDeletedFlag: includeDeleted }
+    if (statusFilter === "active") return { status: 'Active', includeDeletedFlag: includeDeleted }
+    if (statusFilter === "inactive") return { status: 'Inactive', includeDeletedFlag: includeDeleted }
+    if (statusFilter === "deleted") return { status: 'All', includeDeletedFlag: true }
+    return { status: 'Active', includeDeletedFlag: includeDeleted }
+  }
+
   const loadRiskManagement = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/setup/risk-management?limit=1000&status=Active`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const { status, includeDeletedFlag } = buildApiStatus()
+      const url = `${API_BASE}/api/setup/risk-management?limit=1000&status=${encodeURIComponent(status)}${includeDeletedFlag ? '&includeDeleted=true' : ''}`
+      console.log('🔍 Loading risk management from:', url) // Debug log
+      
+      const res = await fetch(url)
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error('Risk management API error:', res.status, errorText)
+        throw new Error(`HTTP ${res.status}: ${errorText}`)
+      }
+      
       const data = await res.json()
+      console.log('📋 Risk management response:', data)
       
-      console.log('Risk management response:', data) // Debug log
-      
-      // Fix: Check for data.data instead of data.rows
       if (data.success && Array.isArray(data.data)) {
         const mapped = data.data.map((item: any) => ({
           id: String(item.id),
           criteria_id: item.criteria_id,
-          criteria: item.criteria,
-          option: item.option,
-          level: item.level,
-          exception: item.exception,
-          active: item.status === 'Active'
+          criteria: item.criteria || 'Unknown Criteria',
+          option: item.option || item.rrm_option || '',
+          level: item.level || item.rrm_level || 0,
+          exception: item.exception || item.rrm_exception || '',
+          active: item.status === 'Active',
+          deleted: item.deleted === 1 || item.deleted === true
         }))
-        console.log('Mapped rows:', mapped) // Debug log
+        console.log('✅ Mapped rows:', mapped)
         setRows(mapped)
       } else {
-        console.warn('Unexpected response format:', data)
+        console.warn('⚠️ Unexpected response format:', data)
         setRows([])
       }
     } catch (err) {
-      console.error('Failed to load risk management:', err)
+      console.error('❌ Failed to load risk management:', err)
       throw err
     }
   }
 
   const loadCriteria = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/setup/rrm-criteria?limit=1000&status=Active`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const { status, includeDeletedFlag } = buildApiStatus()
+      const url = `${API_BASE}/api/setup/rrm-criteria?limit=1000&status=${encodeURIComponent(status)}${includeDeletedFlag ? '&includeDeleted=true' : ''}`
+      console.log('🔍 Loading criteria from:', url)
+      
+      const res = await fetch(url)
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error('Criteria API error:', res.status, errorText)
+        throw new Error(`HTTP ${res.status}: ${errorText}`)
+      }
+      
       const data = await res.json()
+      console.log('📋 Criteria response:', data)
       
-      console.log('Criteria response:', data) // Debug log
-      
-      // Fix: Check for data.data instead of data.rows
       if (data.success && Array.isArray(data.data)) {
-        setCriteriaOptions(data.data)
+        const mapped = data.data.map((item: any) => ({
+          ...item,
+          deleted: item.deleted === 1 || item.deleted === true
+        }))
+        
+        // 🔥 UPDATED: Show all criteria in modal but only active ones in dropdown
+        setCriteriaOptions(mapped)
       } else {
-        console.warn('Unexpected criteria response format:', data)
+        console.warn('⚠️ Unexpected criteria response format:', data)
         setCriteriaOptions([])
       }
     } catch (err) {
-      console.error('Failed to load criteria:', err)
+      console.error('❌ Failed to load criteria:', err)
       throw err
     }
   }
 
   const loadLevels = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/setup/rrm-levels?limit=1000&status=Active`)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const { status, includeDeletedFlag } = buildApiStatus()
+      const url = `${API_BASE}/api/setup/rrm-levels?limit=1000&status=${encodeURIComponent(status)}${includeDeletedFlag ? '&includeDeleted=true' : ''}`
+      console.log('🔍 Loading levels from:', url)
+      
+      const res = await fetch(url)
+      if (!res.ok) {
+        const errorText = await res.text()
+        console.error('Levels API error:', res.status, errorText)
+        throw new Error(`HTTP ${res.status}: ${errorText}`)
+      }
+      
       const data = await res.json()
+      console.log('📋 Levels response:', data)
       
-      console.log('Levels response:', data) // Debug log
-      
-      // Fix: Check for data.data instead of data.rows
       if (data.success && Array.isArray(data.data)) {
         const mapped = data.data.map((item: any) => ({
           id: item.id,
           value: item.level_value,
-          label: item.level_label,
-          range: item.range_min && item.range_max ? { min: item.range_min, max: item.range_max } : undefined
+          label: item.level_label || `${item.level_value}`,
+          range: item.range_min && item.range_max ? { min: item.range_min, max: item.range_max } : undefined,
+          deleted: item.deleted === 1 || item.deleted === true
         }))
-        console.log('Mapped levels:', mapped) // Debug log
+        console.log('✅ Mapped levels:', mapped)
+        
+        // 🔥 UPDATED: Show all levels in modal but only active ones in dropdown
         setLevelOptions(mapped)
       } else {
-        console.warn('Unexpected levels response format:', data)
+        console.warn('⚠️ Unexpected levels response format:', data)
         setLevelOptions([])
       }
     } catch (err) {
-      console.error('Failed to load levels:', err)
+      console.error('❌ Failed to load levels:', err)
       throw err
     }
   }
 
-  // filtering + sorting
+  // filtering + sorting - Updated to handle deleted items
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     return rows.filter((r) => {
-      if (statusFilter === "active" && !r.active) return false
-      if (statusFilter === "inactive" && r.active) return false
+      // Filter by status
+      if (statusFilter === "active" && (!r.active || r.deleted)) return false
+      if (statusFilter === "inactive" && (r.active || r.deleted)) return false
+      if (statusFilter === "deleted" && !r.deleted) return false
+      if (statusFilter === "all" && r.deleted && !includeDeleted) return false
+      
+      // Filter by search term
       if (!q) return true
       return r.criteria.toLowerCase().includes(q) || r.option.toLowerCase().includes(q) || r.exception.toLowerCase().includes(q)
     })
-  }, [rows, search, statusFilter])
+  }, [rows, search, statusFilter, includeDeleted])
 
   const displayed = useMemo(() => {
     const list = [...filtered]
@@ -276,7 +338,7 @@ export default function RiskManagement() {
           if (errorData.errors && Array.isArray(errorData.errors)) {
             const errs: Record<string, string> = {}
             errorData.errors.forEach((err: any) => {
-              if (err.path) errs[err.path] = err.msg
+              if (err.path || err.param) errs[err.path || err.param] = err.msg || err.message
             })
             setFormErrors(errs)
             return
@@ -285,7 +347,7 @@ export default function RiskManagement() {
         }
         
         await loadRiskManagement()
-        pushToast("RRM entry updated", { type: "success" })
+        pushToast("RRM entry updated successfully", { type: "success" })
       } else {
         // Create new entry
         const res = await fetch(`${API_BASE}/api/setup/risk-management`, {
@@ -299,7 +361,7 @@ export default function RiskManagement() {
           if (errorData.errors && Array.isArray(errorData.errors)) {
             const errs: Record<string, string> = {}
             errorData.errors.forEach((err: any) => {
-              if (err.path) errs[err.path] = err.msg
+              if (err.path || err.param) errs[err.path || err.param] = err.msg || err.message
             })
             setFormErrors(errs)
             return
@@ -308,7 +370,7 @@ export default function RiskManagement() {
         }
         
         await loadRiskManagement()
-        pushToast("RRM entry added", { type: "success" })
+        pushToast("RRM entry created successfully", { type: "success" })
       }
       
       resetForm()
@@ -330,7 +392,7 @@ export default function RiskManagement() {
 
   function onEdit(id: string) {
     const r = rows.find((x) => x.id === id)
-    if (!r) return
+    if (!r || r.deleted) return
     setEditingId(id)
     setCriteriaId(r.criteria_id)
     setOption(r.option)
@@ -340,10 +402,17 @@ export default function RiskManagement() {
     setFormErrors({})
   }
 
-  // delete flow with confirm toast
+  // 🔥 UPDATED: Better delete flow with loading states
   function requestDelete(id: string) {
     const r = rows.find((x) => x.id === id)
-    pushToast(`Delete "${r ? r.criteria : "this entry"}"?`, { type: "confirm", targetId: id })
+    if (!r || r.deleted) {
+      console.log('🎯 Frontend requesting delete for ID:', id)
+      console.log('📋 Found record:', r)
+      pushToast("Record not found or already deleted", { type: "error" })
+      return
+    }
+    
+    pushToast(`Soft delete "${r.criteria}"? (Can be restored later)`, { type: "confirm", targetId: id })
   }
   
   async function confirmDelete(toastId: string, rowId?: string) {
@@ -352,21 +421,37 @@ export default function RiskManagement() {
       return
     }
     
+    // Add to deleting set to show loading state
+    setDeleting(prev => new Set(prev).add(rowId))
+    
     try {
+      console.log('🗑️ Deleting item with ID:', rowId)
       const res = await fetch(`${API_BASE}/api/setup/risk-management/${rowId}`, {
         method: 'DELETE'
       })
       
       if (!res.ok) {
         const errorData = await res.json()
+        console.error('Delete API error:', errorData)
         throw new Error(errorData.error || `HTTP ${res.status}`)
       }
       
+      const responseData = await res.json()
+      console.log('✅ Delete response:', responseData)
+      
       await loadRiskManagement()
-      pushToast("RRM entry deleted", { type: "success" })
+      pushToast("RRM entry soft deleted successfully", { type: "success" })
       if (editingId === rowId) resetForm()
     } catch (err: any) {
+      console.error('❌ Delete error:', err)
       pushToast(err?.message || "Failed to delete", { type: "error" })
+    } finally {
+      // Remove from deleting set
+      setDeleting(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(rowId)
+        return newSet
+      })
     }
     
     removeToast(toastId)
@@ -376,10 +461,43 @@ export default function RiskManagement() {
     removeToast(toastId)
   }
 
+  // 🔥 UPDATED: Better restore flow with loading states
+  async function restoreItem(id: string) {
+    setRestoring(prev => new Set(prev).add(id))
+    
+    try {
+      console.log('🔄 Restoring item with ID:', id)
+      const res = await fetch(`${API_BASE}/api/setup/risk-management/${id}/restore`, {
+        method: 'PATCH'
+      })
+      
+      if (!res.ok) {
+        const errorData = await res.json()
+        console.error('Restore API error:', errorData)
+        throw new Error(errorData.error || `HTTP ${res.status}`)
+      }
+      
+      const responseData = await res.json()
+      console.log('✅ Restore response:', responseData)
+      
+      await loadRiskManagement()
+      pushToast("RRM entry restored successfully", { type: "success" })
+    } catch (err: any) {
+      console.error('❌ Restore error:', err)
+      pushToast(err?.message || "Failed to restore item", { type: "error" })
+    } finally {
+      setRestoring(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(id)
+        return newSet
+      })
+    }
+  }
+
   async function toggleActive(id: string) {
     try {
       const row = rows.find(r => r.id === id)
-      if (!row) return
+      if (!row || row.deleted) return
       
       const res = await fetch(`${API_BASE}/api/setup/risk-management/${id}`, {
         method: 'PUT',
@@ -399,7 +517,7 @@ export default function RiskManagement() {
       }
       
       await loadRiskManagement()
-      pushToast(`Entry ${row.active ? 'deactivated' : 'activated'}`, { type: "success" })
+      pushToast(`Entry ${row.active ? 'deactivated' : 'activated'} successfully`, { type: "success" })
     } catch (err: any) {
       pushToast(err?.message || "Failed to update status", { type: "error" })
     }
@@ -432,10 +550,10 @@ export default function RiskManagement() {
       }
       
       await loadCriteria()
-      const newCriteriaObj = criteriaOptions.find(c => c.name === trimmed)
+      const newCriteriaObj = criteriaOptions.find(c => c.name === trimmed && !c.deleted)
       if (newCriteriaObj) setCriteriaId(newCriteriaObj.id)
       
-      pushToast("Criteria added", { type: "success" })
+      pushToast("Criteria added successfully", { type: "success" })
       setShowAddCriteria(false)
       setNewCriteria("")
     } catch (err: any) {
@@ -455,12 +573,10 @@ export default function RiskManagement() {
     const criteria = criteriaOptions[idx]
     if (!criteria) return
     
-    // Note: You'd need a DELETE endpoint for criteria
-    // For now, just show a message
     pushToast("Criteria deletion not implemented yet", { type: "error" })
   }
 
-  // Add level (simplified - you can expand this)
+  // Add level
   const addLevel = async (value: number, label: string) => {
     if (!value || !label.trim()) return pushToast("Enter level and label", { type: "error" })
     
@@ -483,7 +599,7 @@ export default function RiskManagement() {
       
       await loadLevels()
       setLevel(value)
-      pushToast("Level added", { type: "success" })
+      pushToast("Level added successfully", { type: "success" })
       setShowAddLevel(false)
       setNewLevelValue("")
       setNewLevelLabel("")
@@ -505,7 +621,6 @@ export default function RiskManagement() {
     }
     if (lowMax >= medMin || medMax >= highMin) pushToast("Warning: ranges overlap or are contiguous", { type: "info" })
 
-    // Update levels 1, 2, 3 with ranges
     try {
       const updates = [
         { value: 1, label: `1 (Low ${lowMin}-${lowMax})`, range: { min: lowMin, max: lowMax } },
@@ -513,19 +628,18 @@ export default function RiskManagement() {
         { value: 3, label: `3 (High ${highMin}-${highMax})`, range: { min: highMin, max: highMax } },
       ]
       
-      // Note: You'd need to implement level updates in your API
-      // For now, just update local state
       const others = levelOptions.filter((lo) => ![1, 2, 3].includes(lo.value))
       const newOnes: LevelOption[] = updates.map(u => ({
         id: levelOptions.find(lo => lo.value === u.value)?.id || 0,
         value: u.value,
         label: u.label,
-        range: u.range
+        range: u.range,
+        deleted: false
       }))
       setLevelOptions([...newOnes, ...others])
       setLevel(1)
       setShowAddLevel(false)
-      pushToast("RRM level ranges saved", { type: "success" })
+      pushToast("RRM level ranges saved successfully", { type: "success" })
     } catch (err: any) {
       pushToast(err?.message || "Failed to save ranges", { type: "error" })
     }
@@ -548,22 +662,23 @@ export default function RiskManagement() {
     setShowAddLevel((v) => !v)
   }
 
-  // Export CSV
+  // Export CSV - Updated to include deleted status
   const exportCSV = () => {
     if (!rows || rows.length === 0) {
       pushToast("No rows to export", { type: "error" })
       return
     }
-    const headers = ["Criteria", "RRM Option", "RRM Level", "RRM Exception", "Status"]
+    const headers = ["Criteria", "RRM Option", "RRM Level", "RRM Exception", "Status", "Deleted"]
     const lines = [
       headers.join(","),
-      ...rows.map((r) =>
+      ...displayed.map((r) =>
         [
           `"${String(r.criteria).replace(/"/g, '""')}"`,
           `"${String(r.option).replace(/"/g, '""')}"`,
           r.level,
           `"${String(r.exception).replace(/"/g, '""')}"`,
           r.active ? "Active" : "Inactive",
+          r.deleted ? "Yes" : "No",
         ].join(",")
       ),
     ]
@@ -578,13 +693,14 @@ export default function RiskManagement() {
     a.click()
     a.remove()
     URL.revokeObjectURL(url)
-    pushToast(`Exported ${rows.length} row(s)`, { type: "success" })
+    pushToast(`Exported ${displayed.length} row(s)`, { type: "success" })
   }
 
   if (loading) {
     return (
       <div className="container mx-auto px-4 py-6">
         <div className="text-center py-12">
+          <div className="animate-spin inline-block w-6 h-6 border-2 border-current border-t-transparent text-primary rounded-full mb-4"></div>
           <div className="text-slate-600 dark:text-slate-300">Loading risk management data...</div>
         </div>
       </div>
@@ -606,10 +722,27 @@ export default function RiskManagement() {
               <option value="all">All</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
+              <option value="deleted">Deleted</option>
             </select>
           </div>
 
+          {/* Toggle for showing deleted items */}
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={includeDeleted}
+              onChange={(e) => setIncludeDeleted(e.target.checked)}
+              className="rounded"
+            />
+            Show Deleted
+          </label>
+
           <div className="flex items-center gap-2 ml-auto">
+            {/* 🔥 NEW: Refresh button */}
+            <button onClick={loadData} disabled={loading} className="inline-flex items-center gap-2 px-3 py-2 rounded border border-border bg-transparent hover:bg-muted/5 disabled:opacity-50" title="Refresh Data">
+              <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
+
             <button onClick={() => { setShowForm((s) => !s); resetForm() }} className="inline-flex items-center gap-2 px-3 py-2 rounded bg-primary text-primary-foreground shadow-sm hover:shadow focus:outline-none">
               <PlusCircle className="h-4 w-4" /> {showForm ? "Close Form" : "New RRM"}
             </button>
@@ -646,7 +779,8 @@ export default function RiskManagement() {
                         disabled={saving}
                       >
                         <option value={0}>Select a Criteria</option>
-                        {criteriaOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        {/* 🔥 UPDATED: Only show non-deleted criteria in dropdown */}
+                        {criteriaOptions.filter(c => !c.deleted).map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
                       </select>
 
                       <button
@@ -675,7 +809,8 @@ export default function RiskManagement() {
                         className={`flex-1 h-10 px-3 rounded border ${formErrors.rrm_level ? "border-rose-400 dark:border-rose-400" : "border-border dark:border-slate-700"} bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-slate-100`}
                         disabled={saving}
                       >
-                        {levelOptions.map((lo) => <option key={lo.id} value={lo.value}>{lo.label}</option>)}
+                        {/* 🔥 UPDATED: Only show non-deleted levels in dropdown */}
+                        {levelOptions.filter(lo => !lo.deleted).map((lo) => <option key={lo.id} value={lo.value}>{lo.label}</option>)}
                       </select>
 
                       <button
@@ -787,19 +922,68 @@ export default function RiskManagement() {
 
             <tbody>
               {displayed.map((r, idx) => (
-                <tr key={r.id} className={`text-sm border-t last:border-b-0 ${idx % 2 === 0 ? "bg-transparent" : "bg-muted/5"} hover:bg-muted/10`}>
+                <tr key={r.id} className={`text-sm border-t last:border-b-0 ${
+                  r.deleted ? "bg-red-50 dark:bg-red-900/20" : 
+                  idx % 2 === 0 ? "bg-transparent" : "bg-muted/5"
+                } hover:bg-muted/10`}>
                   <td className="py-3 px-3 align-top">{idx + 1}</td>
-                  <td className="py-3 px-3 align-top max-w-xs">{r.criteria}</td>
-                  <td className="py-3 px-3 align-top max-w-lg">{r.option}</td>
-                  <td className="py-3 px-3 align-top">{r.level}</td>
-                  <td className="py-3 px-3 align-top">{r.exception}</td>
+                  <td className="py-3 px-3 align-top max-w-xs">
+                    <div className={r.deleted ? "line-through text-gray-500" : ""}>
+                      {r.criteria}
+                    </div>
+                  </td>
+                  <td className="py-3 px-3 align-top max-w-lg">
+                    <div className={r.deleted ? "line-through text-gray-500" : ""}>
+                      {r.option}
+                    </div>
+                  </td>
+                  <td className="py-3 px-3 align-top">
+                    <div className={r.deleted ? "line-through text-gray-500" : ""}>
+                      {r.level}
+                    </div>
+                  </td>
+                  <td className="py-3 px-3 align-top">
+                    <div className={r.deleted ? "line-through text-gray-500" : ""}>
+                      {r.exception}
+                    </div>
+                  </td>
                   <td className="py-3 px-3 align-top text-center">
-                    <button onClick={() => toggleActive(r.id)} className={`px-3 py-1 rounded text-xs font-medium ${r.active ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>{r.active ? "Active" : "Inactive"}</button>
+                    {r.deleted ? (
+                      <span className="px-3 py-1 rounded text-xs font-medium bg-red-100 text-red-700">Deleted</span>
+                    ) : (
+                      <button onClick={() => toggleActive(r.id)} className={`px-3 py-1 rounded text-xs font-medium ${r.active ? "bg-emerald-100 text-emerald-700" : "bg-rose-100 text-rose-700"}`}>
+                        {r.active ? "Active" : "Inactive"}
+                      </button>
+                    )}
                   </td>
                   <td className="py-3 px-3 align-top text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => onEdit(r.id)} title="Edit" className="inline-flex items-center gap-2 px-2 py-1 rounded border border-border text-sm bg-transparent"><Pencil className="h-4 w-4" /></button>
-                      <button onClick={() => requestDelete(r.id)} title="Delete" className="inline-flex items-center gap-2 px-2 py-1 rounded border border-border text-sm text-rose-600 bg-transparent"><Trash2 className="h-4 w-4" /></button>
+                      {r.deleted ? (
+                        <button 
+                          onClick={() => restoreItem(r.id)} 
+                          disabled={restoring.has(r.id)}
+                          title="Restore" 
+                          className="inline-flex items-center gap-2 px-2 py-1 rounded border border-green-500 text-sm text-green-600 bg-transparent disabled:opacity-50"
+                        >
+                          <RotateCcw className={`h-4 w-4 ${restoring.has(r.id) ? 'animate-spin' : ''}`} />
+                          {restoring.has(r.id) ? 'Restoring...' : ''}
+                        </button>
+                      ) : (
+                        <>
+                          <button onClick={() => onEdit(r.id)} title="Edit" className="inline-flex items-center gap-2 px-2 py-1 rounded border border-border text-sm bg-transparent">
+                            <Pencil className="h-4 w-4" />
+                          </button>
+                          <button 
+                            onClick={() => requestDelete(r.id)} 
+                            disabled={deleting.has(r.id)}
+                            title="Delete" 
+                            className="inline-flex items-center gap-2 px-2 py-1 rounded border border-border text-sm text-rose-600 bg-transparent disabled:opacity-50"
+                          >
+                            <Trash2 className={`h-4 w-4 ${deleting.has(r.id) ? 'animate-spin' : ''}`} />
+                            {deleting.has(r.id) ? 'Deleting...' : ''}
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -815,7 +999,7 @@ export default function RiskManagement() {
         </div>
       </div>
 
-      {/* Criteria modal */}
+      {/* Criteria modal - keeping existing implementation with all criteria visible */}
       {showAddCriteria && (
         <div
           role="dialog"
@@ -872,32 +1056,49 @@ export default function RiskManagement() {
                   <tr className="text-left">
                     <th className="py-2 px-3 w-12">#</th>
                     <th className="py-2 px-3">RRM Criteria</th>
+                    <th className="py-2 px-3 w-24">Status</th>
                     <th className="py-2 px-3 w-28 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody>
+                  {/* 🔥 UPDATED: Show all criteria including deleted ones in modal */}
                   {criteriaOptions.map((c, i) => (
-                    <tr key={c.id} className={`border-t ${i % 2 === 0 ? "" : "bg-muted/5"}`}>
+                    <tr key={c.id} className={`border-t ${i % 2 === 0 ? "" : "bg-muted/5"} ${c.deleted ? "bg-red-50 dark:bg-red-900/20" : ""}`}>
                       <td className="py-3 px-3 align-top">{i + 1}</td>
-                      <td className="py-3 px-3 align-top">{c.name}</td>
+                      <td className="py-3 px-3 align-top">
+                        <div className={c.deleted ? "line-through text-gray-500" : ""}>
+                          {c.name}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 align-top">
+                        {c.deleted ? (
+                          <span className="px-2 py-1 rounded text-xs bg-red-100 text-red-700">Deleted</span>
+                        ) : (
+                          <span className="px-2 py-1 rounded text-xs bg-green-100 text-green-700">{c.status}</span>
+                        )}
+                      </td>
                       <td className="py-3 px-3 align-top text-right">
                         <div className="inline-flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => { editCriteria(i); }}
-                            title="Edit"
-                            className="inline-flex items-center justify-center w-8 h-8 rounded border border-border bg-transparent text-sm"
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => removeCriteria(i)}
-                            title="Delete"
-                            className="inline-flex items-center justify-center w-8 h-8 rounded border border-border bg-transparent text-rose-600"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                          {!c.deleted && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={() => { editCriteria(i); }}
+                                title="Edit"
+                                className="inline-flex items-center justify-center w-8 h-8 rounded border border-border bg-transparent text-sm"
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeCriteria(i)}
+                                title="Delete"
+                                className="inline-flex items-center justify-center w-8 h-8 rounded border border-border bg-transparent text-rose-600"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -905,7 +1106,7 @@ export default function RiskManagement() {
 
                   {criteriaOptions.length === 0 && (
                     <tr>
-                      <td colSpan={3} className="py-6 text-center text-sm text-muted-foreground">No criteria defined.</td>
+                      <td colSpan={4} className="py-6 text-center text-sm text-muted-foreground">No criteria defined.</td>
                     </tr>
                   )}
                 </tbody>
