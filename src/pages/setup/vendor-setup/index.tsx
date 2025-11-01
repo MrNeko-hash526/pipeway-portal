@@ -29,31 +29,46 @@ export default function VendorSetupPage() {
   const addToast = (t: any) => setToasts(prev => [...prev, { id: String(Date.now()) + Math.random(), ...t }])
   const removeToast = (id: string) => setToasts(prev => prev.filter(x => x.id !== id))
 
-  // Load vendors from backend on mount
+  // Load vendors from backend on mount and when filters change
   React.useEffect(() => {
     let mounted = true
     async function load() {
       setLoading(true)
       try {
-        const url = (API_BASE || '').replace(/\/$/, '') + '/api/setup/vendor?limit=1000'
+        const params = new URLSearchParams({
+          limit: '1000',
+          search: query,
+          status: status === 'All' ? '' : status,
+        })
+        const url = `${(API_BASE || '').replace(/\/$/, '')}/api/setup/vendor?${params}`
+        console.log('🔍 Loading vendors from:', url)
+        
         const res = await fetch(url)
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
         const body = await res.json()
-        // service returns { rows, total, page, limit } — map rows into UI shape
-        const rows = Array.isArray(body.rows) ? body.rows : (Array.isArray(body) ? body : [])
-        const mapped = rows.map((r: any) => ({
-          id: r.id,
-          name: r.organization_name || r.name || '',
-          state: r.state || '',
-          email: r.email || '',
-          contact: `${r.contact_first || ''}${r.contact_first && r.contact_last ? ' ' : ''}${r.contact_last || ''}`.trim(),
-          phone: r.work_phone || r.support_number || '',
-          status: r.status || 'Active',
-          raw: r // keep full record for view/edit
-        }))
-        if (mounted) setVendors(mapped)
+        
+        console.log('📋 Vendor response:', body)
+        
+        // Updated to match actual backend response format
+        if (Array.isArray(body.rows)) {
+          const mapped = body.rows.map((r: any) => ({
+            id: r.id,
+            name: r.organization_name || r.name || '',
+            state: r.state || '',
+            email: r.email || '',
+            contact: `${r.contact_first || ''}${r.contact_first && r.contact_last ? ' ' : ''}${r.contact_last || ''}`.trim(),
+            phone: r.work_phone || r.support_number || '',
+            status: r.status || 'Active',
+            raw: r // keep full record for view/edit
+          }))
+          console.log('✅ Mapped vendors:', mapped)
+          if (mounted) setVendors(mapped)
+        } else {
+          console.warn('⚠️ Unexpected response format:', body)
+          if (mounted) setVendors([])
+        }
       } catch (err) {
-        console.error('Failed to load vendors', err)
+        console.error('❌ Failed to load vendors', err)
         addToast({ type: 'info', title: 'Load failed', message: String(err), timeout: 4000 })
       } finally {
         if (mounted) setLoading(false)
@@ -61,7 +76,7 @@ export default function VendorSetupPage() {
     }
     load()
     return () => { mounted = false }
-  }, [])
+  }, [query, status])
 
   const columns: { key: string; label: string; sortable?: boolean }[] = [
     { key: 'idx', label: '#' },
@@ -120,14 +135,9 @@ export default function VendorSetupPage() {
   }, [query, status, sort, vendors])
 
   // --- actions: edit, warn, delete, view ---
-  const handleEditClick = (item: any) => {
-    const id = encodeURIComponent(String(item.id))
-    window.location.href = `/setup/vendor-setup/add?id=${id}`
-  }
-
   const handleWarn = async (id: number, name?: string) => {
     try {
-      const url = (API_BASE || '').replace(/\/$/, '') + `/api/setup/vendor/${id}`
+      const url = `${(API_BASE || '').replace(/\/$/, '')}/api/setup/vendor/${id}`
       const res = await fetch(url, {
         method: 'PUT',
         headers: {
@@ -163,31 +173,34 @@ export default function VendorSetupPage() {
     }
   }
 
-  // Delete: call backend, then remove from state
+  // Soft Delete: call backend, then remove from local state
   const handleDelete = (id: number, name?: string) => {
     const toastId = String(Date.now()) + Math.random()
     addToast({
       id: toastId,
       type: 'confirm',
-      title: 'Delete organization?',
-      message: `Delete "${name ?? ''}" permanently?`,
+      title: 'Soft delete organization?',
+      message: `Mark "${name ?? ''}" as deleted? This will remove it from the list.`,
       confirmLabel: 'Delete',
       cancelLabel: 'Cancel',
       onConfirm: async () => {
         try {
           removeToast(toastId)
-          const url = (API_BASE || '').replace(/\/$/, '') + `/api/setup/vendor/${id}`
+          const url = `${(API_BASE || '').replace(/\/$/, '')}/api/setup/vendor/${id}`
           const res = await fetch(url, { method: 'DELETE' })
-          if (!res.ok && res.status !== 204) {
+          if (!res.ok) {
             const body = await res.json().catch(() => ({}))
             throw new Error(body.error || `HTTP ${res.status}`)
           }
+          
+          // Remove from local state completely
           setVendors(prev => prev.filter(v => v.id !== id))
+          
           addToast({
             id: String(Date.now()) + Math.random(),
             type: 'info',
             title: 'Deleted',
-            message: `Organization "${name ?? ''}" deleted successfully.`,
+            message: `Organization "${name ?? ''}" has been deleted.`,
             timeout: 3000,
           })
         } catch (err) {
@@ -198,32 +211,35 @@ export default function VendorSetupPage() {
     })
   }
 
-  // View details (fetch from backend) - shows attachments from vendor_attachments table
+  // View details (fetch from backend) - shows attachments from JSON column
   const handleView = async (id: number) => {
     try {
-      const url = (API_BASE || '').replace(/\/$/, '') + `/api/setup/vendor/${id}`
+      const url = `${(API_BASE || '').replace(/\/$/, '')}/api/setup/vendor/${id}?includeDeleted=true`
       const res = await fetch(url)
       if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const body = await res.json()
-      setViewVendor(body)
+      console.log('📋 Vendor details:', body)
+      
+      // Updated to match actual backend response format
+      setViewVendor(body.success ? body.data : body)
     } catch (err) {
       console.error('Failed to load vendor', err)
       addToast({ id: String(Date.now()), type: 'info', title: 'Load failed', message: String(err), timeout: 3000 })
     }
   }
 
-  // NEW: download attachment by fetching it and forcing browser "save as"
+  // Download attachment by fetching it and forcing browser "save as"
   const handleDownloadAttachment = async (att: any) => {
     try {
-      const filePath = att.url || `/uploads/vendor/${att.filename}`
-      const url = (API_BASE || '').replace(/\/$/, '') + filePath
+      const filePath = att.url || att.file_path || `/uploads/vendor/${att.filename}`
+      const url = `${(API_BASE || '').replace(/\/$/, '')}${filePath}`
       const res = await fetch(url)
       if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`)
       const blob = await res.blob()
       const blobUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = blobUrl
-      a.download = att.filename || 'download'
+      a.download = att.original_name || att.filename || 'download'
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -249,14 +265,14 @@ export default function VendorSetupPage() {
       const workbook = new ExcelJS.Workbook()
       const ws = workbook.addWorksheet('Vendors')
 
-      const headerRow = ['#', ...visibleCols.map(c => c.label)]
+      const headerRow = ['#', ...visibleCols.map(c => c.label), 'Deleted']
       ws.addRow(headerRow)
 
       filteredAndSorted.forEach((r: any, i: number) => {
         const row = [i + 1, ...visibleCols.map(col => {
           const v = r[col.key]
           return v === undefined || v === null ? '' : v
-        })]
+        }), 'No'] // Since deleted items are not shown, always 'No'
         ws.addRow(row)
       })
 
@@ -302,7 +318,7 @@ export default function VendorSetupPage() {
       </div>
 
       <div className="mt-4 bg-white/5 border rounded-md p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
           <div>
             <label className="block text-sm text-slate-600 mb-1">Search:</label>
             <input
@@ -380,7 +396,7 @@ export default function VendorSetupPage() {
               </tr>
             )}
             {!loading && filteredAndSorted.map((o, idx) => (
-              <tr key={o.id} className="border-t even:bg-white/2">
+              <tr key={o.id} className={`border-t even:bg-white/2`}>
                 <td className="p-3 text-sm">{idx + 1}</td>
                 <td className="p-3 text-sm">{o.name}</td>
                 <td className="p-3 text-sm">{o.state}</td>
@@ -461,20 +477,20 @@ export default function VendorSetupPage() {
               </div>
 
               <div className="md:col-span-2 border-t pt-3 mt-2">
-                <label className="text-sm block mb-2 font-medium">Attachments (from vendor_attachments table)</label>
+                <label className="text-sm block mb-2 font-medium">Attachments</label>
                 <div className="space-y-2">
                   {(!viewVendor.attachments || viewVendor.attachments.length === 0) && (
                     <div className="text-sm text-slate-500">No attachments</div>
                   )}
                   {(viewVendor.attachments || []).map((a: any) => (
-                    <div key={a.id || a.filename} className="flex items-center gap-2 text-sm">
+                    <div key={a.filename || a.original_name} className="flex items-center gap-2 text-sm">
                       <button
                         type="button"
                         onClick={() => handleDownloadAttachment(a)}
                         className="text-sky-600 hover:underline text-left"
-                        title={`Download ${a.filename}`}
+                        title={`Download ${a.original_name || a.filename}`}
                       >
-                        📎 {a.filename}
+                        📎 {a.original_name || a.filename}
                       </button>
                       <span className="text-xs text-slate-500">
                         ({a.file_size ? `${Math.round(a.file_size / 1024)} KB` : 'unknown size'})

@@ -44,16 +44,21 @@ export default function UserSetupPage() {
         const rows = Array.isArray(body.data) ? body.data : []
         const mapped = rows.map((r: any) => ({
           id: r.id,
-          firstName: r.first_name || '',
-          lastName: r.last_name || '',
+          first_name: r.first_name || '',           // snake_case
+          last_name: r.last_name || '',             // snake_case  
           email: r.email || '',
           company: r.user_type === 'Organization' 
-            ? r.organization_display || `Organization ID: ${r.organization_id}`
-            : r.company_name || '',
-          role: r.user_role || '',
-          phone: '', // Not stored in user_setup table
+            ? r.organization_display || `Organization ID: ${r.organization_id || 'N/A'}`
+            : r.company_name || 'N/A',
+          role: r.user_role || '',                  // snake_case
+          phone: '', 
           status: r.status || 'Active',
-          type: r.user_type || 'Organization'
+          type: r.user_type || 'Organization',      // snake_case
+          organization_id: r.organization_id,       // snake_case
+          company_name: r.company_name,             // snake_case
+          full_name: r.full_name || `${r.first_name} ${r.last_name}`,
+          created_at: r.created_at,                 // snake_case
+          updated_at: r.updated_at                  // snake_case
         }))
         
         console.log('📊 Loaded users:', mapped.length)
@@ -79,8 +84,8 @@ export default function UserSetupPage() {
 
   const columns: { key: string; label: string; sortable?: boolean }[] = [
     { key: 'idx', label: '#' },
-    { key: 'firstName', label: 'First Name', sortable: true },
-    { key: 'lastName', label: 'Last Name', sortable: true },
+    { key: 'first_name', label: 'First Name', sortable: true },
+    { key: 'last_name', label: 'Last Name', sortable: true },
     { key: 'email', label: 'Email', sortable: true },
     { key: 'company', label: 'Company/Organization', sortable: true },
     { key: 'status', label: 'Status', sortable: true },
@@ -98,10 +103,11 @@ export default function UserSetupPage() {
       const q = query.trim().toLowerCase()
       const matchesQuery =
         !q ||
-        String(o.firstName ?? '').toLowerCase().includes(q) ||
-        String(o.lastName ?? '').toLowerCase().includes(q) ||
+        String(o.first_name ?? '').toLowerCase().includes(q) ||    // snake_case
+        String(o.last_name ?? '').toLowerCase().includes(q) ||     // snake_case
         String(o.email ?? '').toLowerCase().includes(q) ||
-        String(o.company ?? '').toLowerCase().includes(q)
+        String(o.company ?? '').toLowerCase().includes(q) ||
+        String(o.role ?? '').toLowerCase().includes(q)
       const matchesStatus = status === 'All' || o.status === status
       const matchesType = userTypeFilter === 'All' || o.type === userTypeFilter
       return matchesQuery && matchesStatus && matchesType
@@ -343,8 +349,8 @@ export default function UserSetupPage() {
             {!loading && filteredAndSorted.map((o, idx) => (
               <tr key={o.id} className="border-t even:bg-white/2">
                 <td className="p-3 text-sm">{idx + 1}</td>
-                <td className="p-3 text-sm">{o.firstName}</td>
-                <td className="p-3 text-sm">{o.lastName}</td>
+                <td className="p-3 text-sm font-medium">{o.first_name}</td>
+                <td className="p-3 text-sm font-medium">{o.last_name}</td>
                 <td className="p-3 text-sm">{o.email}</td>
                 <td className="p-3 text-sm">{o.company}</td>
                 <td className="p-3 text-sm">
