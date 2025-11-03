@@ -1,5 +1,3 @@
-"use client"
-
 import React from "react"
 import Link from "@/components/link"
 import * as yup from "yup"
@@ -206,17 +204,22 @@ export default function ManagePoliciesAdd() {
     setIsUploading(true)
     try {
       const fd = new FormData()
-      // send field name "attachments" so multer/upload.array('attachments') accepts it on server
-      fd.append("attachments", file as File)
-
-      const res = await fetch(`${API_BASE.replace(/\/$/, "")}/api/manage-policies/upload`, {
+      // backend attachments router expects field name "policy_pdf"
+      fd.append("policy_pdf", file as File)
+      // use policyId if available, otherwise 0 (backend treats 0 as unlinked/new)
+      const targetPolicyId = policyId || "0"
+      const res = await fetch(`${API_BASE.replace(/\/$/, "")}/api/manage-policies/${targetPolicyId}/attachments`, {
         method: "POST",
         body: fd,
       })
 
       const body = await res.json().catch(() => ({}))
       if (!res.ok) {
+        // more helpful message for multer "Unexpected field"
         const msg = body?.message || body?.error || `Upload failed (${res.status})`
+        if (/Unexpected field/i.test(msg)) {
+          throw new Error('Upload failed: server did not accept the form field. Send field name "policy_pdf".')
+        }
         throw new Error(msg)
       }
 
@@ -366,6 +369,31 @@ export default function ManagePoliciesAdd() {
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // upload new PDF for policyId:
+  const uploadPdf = async (file: File) => {
+    const fd = new FormData()
+    fd.append('policy_pdf', file) // File object
+    const res = await fetch(`${API_BASE}/api/manage-policies/${policyId}/attachments`, { method: 'POST', body: fd })
+    return res
+  }
+
+  // replace existing attachment by attachmentId:
+  const replaceAttachment = async (attachmentId: string, file: File) => {
+    const fd2 = new FormData()
+    fd2.append('policy_pdf', file)
+    await fetch(`${API_BASE}/api/manage-policies/attachments/${attachmentId}`, { method: 'PUT', body: fd2 })
+  }
+
+  // list attachments:
+  const listAttachments = async () => {
+    await fetch(`${API_BASE}/api/manage-policies/${policyId}/attachments`)
+  }
+
+  // soft-delete:
+  const softDeleteAttachment = async (attachmentId: string) => {
+    await fetch(`${API_BASE}/api/manage-policies/attachments/${attachmentId}`, { method: 'DELETE' })
   }
 
   if (loading) {

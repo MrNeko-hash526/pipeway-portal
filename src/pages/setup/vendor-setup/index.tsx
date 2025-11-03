@@ -2,6 +2,7 @@ import Link from '@/components/link'
 import React from 'react'
 import * as ExcelJS from 'exceljs'
 import { DownloadCloud } from 'lucide-react'
+import path from 'path'
 
 const API_BASE = typeof window !== 'undefined' 
   ? (window as any).__ENV__?.NEXT_PUBLIC_API_BASE || 'http://localhost:3000'
@@ -211,40 +212,43 @@ export default function VendorSetupPage() {
     })
   }
 
-  // View details (fetch from backend) - shows attachments from JSON column
-  const handleView = async (id: number) => {
-    try {
-      const url = `${(API_BASE || '').replace(/\/$/, '')}/api/setup/vendor/${id}?includeDeleted=true`
-      const res = await fetch(url)
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
-      const body = await res.json()
-      console.log('📋 Vendor details:', body)
-      
-      // Updated to match actual backend response format
-      setViewVendor(body.success ? body.data : body)
-    } catch (err) {
-      console.error('Failed to load vendor', err)
-      addToast({ id: String(Date.now()), type: 'info', title: 'Load failed', message: String(err), timeout: 3000 })
-    }
+  // Redirect to standalone view page
+  const handleView = (id: number) => {
+    const target = `/setup/vendor-setup/view?id=${encodeURIComponent(String(id))}`
+    window.location.href = target
   }
 
-  // Download attachment by fetching it and forcing browser "save as"
+  // NEW: download attachment via backend stream endpoint (/files/vendor/:filename)
   const handleDownloadAttachment = async (att: any) => {
     try {
-      const filePath = att.url || att.file_path || `/uploads/vendor/${att.filename}`
-      const url = `${(API_BASE || '').replace(/\/$/, '')}${filePath}`
+      if (!att) throw new Error('Invalid attachment')
+
+      // If attachment provides a full absolute URL, use it directly
+      const isAbsolute = typeof att.url === 'string' && /^https?:\/\//i.test(att.url)
+      let url: string
+
+      if (isAbsolute) {
+        url = att.url
+      } else {
+        // If att.url is like "/uploads/vendor/xxx.pdf", prefer backend streaming route
+        const filename = att.filename || (att.url ? path.basename(att.url) : null) || att.name
+        const encoded = encodeURIComponent(String(filename || ''))
+        url = `${(API_BASE || '').replace(/\/$/, '')}/files/vendor/${encoded}`
+      }
+
       const res = await fetch(url)
       if (!res.ok) throw new Error(`Download failed: HTTP ${res.status}`)
+
       const blob = await res.blob()
       const blobUrl = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = blobUrl
-      a.download = att.original_name || att.filename || 'download'
+      a.download = att.filename || att.name || 'download'
       document.body.appendChild(a)
       a.click()
       a.remove()
       URL.revokeObjectURL(blobUrl)
-    } catch (err) {
+    } catch (err: any) {
       console.error('Download failed', err)
       addToast({ id: String(Date.now()), type: 'info', title: 'Download failed', message: String(err), timeout: 3000 })
     }
@@ -435,75 +439,109 @@ export default function VendorSetupPage() {
         </table>
       </div>
 
-      {/* View modal - displays vendor details including attachments */}
+      {/* View modal rendered as a read-only form (can open edit page) */}
       {viewVendor && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-2xl bg-white dark:bg-slate-900 p-6 rounded shadow-xl max-h-[90vh] overflow-auto">
-            <div className="flex items-start justify-between mb-4">
-              <h3 className="text-lg font-semibold">Organization Details</h3>
-              <button onClick={() => setViewVendor(null)} className="text-sm px-2 py-1 border rounded">Close</button>
+          <div className="w-full max-w-3xl bg-white dark:bg-slate-900 p-6 rounded shadow-xl max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold">Organization (View)</h3>
+              <div className="flex items-center gap-2">
+                <a
+                  href={`/setup/vendor-setup/edit?id=${encodeURIComponent(String(viewVendor.id || viewVendor.id))}`}
+                  className="text-sm px-3 py-1 border rounded bg-sky-600 text-white"
+                >
+                  Edit
+                </a>
+                <button onClick={() => setViewVendor(null)} className="text-sm px-2 py-1 border rounded">Close</button>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              <div>
-                <label className="text-sm block mb-1 font-medium">Organization</label>
-                <div className="text-sm">{viewVendor.organization_name}</div>
-              </div>
-              <div>
-                <label className="text-sm block mb-1 font-medium">Code</label>
-                <div className="text-sm">{viewVendor.organization_code || '-'}</div>
-              </div>
-              <div>
-                <label className="text-sm block mb-1 font-medium">Type</label>
-                <div className="text-sm">{viewVendor.type}</div>
-              </div>
-              <div>
-                <label className="text-sm block mb-1 font-medium">Risk</label>
-                <div className="text-sm">{viewVendor.risk_level || '-'}</div>
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm block mb-1 font-medium">Address</label>
-                <div className="text-sm">
-                  {viewVendor.address1}{viewVendor.address2 ? `, ${viewVendor.address2}` : ''}{viewVendor.address3 ? `, ${viewVendor.address3}` : ''}
+            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm block mb-1 font-medium">Organization</label>
+                  <input className="w-full border rounded px-3 py-2 bg-slate-50" value={viewVendor.organization_name || ''} disabled />
+                </div>
+                <div>
+                  <label className="text-sm block mb-1 font-medium">Code</label>
+                  <input className="w-full border rounded px-3 py-2 bg-slate-50" value={viewVendor.organization_code || ''} disabled />
+                </div>
+
+                <div>
+                  <label className="text-sm block mb-1 font-medium">Type</label>
+                  <input className="w-full border rounded px-3 py-2 bg-slate-50" value={viewVendor.type || ''} disabled />
+                </div>
+                <div>
+                  <label className="text-sm block mb-1 font-medium">Risk</label>
+                  <input className="w-full border rounded px-3 py-2 bg-slate-50" value={viewVendor.risk_level || ''} disabled />
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="text-sm block mb-1 font-medium">Address</label>
+                  <input
+                    className="w-full border rounded px-3 py-2 bg-slate-50"
+                    value={[viewVendor.address1, viewVendor.address2, viewVendor.address3].filter(Boolean).join(', ')}
+                    disabled
+                  />
+                </div>
+
+                <div>
+                  <label className="text-sm block mb-1 font-medium">Contact First</label>
+                  <input className="w-full border rounded px-3 py-2 bg-slate-50" value={viewVendor.contact_first || ''} disabled />
+                </div>
+                <div>
+                  <label className="text-sm block mb-1 font-medium">Contact Last</label>
+                  <input className="w-full border rounded px-3 py-2 bg-slate-50" value={viewVendor.contact_last || ''} disabled />
+                </div>
+
+                <div>
+                  <label className="text-sm block mb-1 font-medium">Phone</label>
+                  <input className="w-full border rounded px-3 py-2 bg-slate-50" value={viewVendor.work_phone || viewVendor.support_number || ''} disabled />
+                </div>
+                <div>
+                  <label className="text-sm block mb-1 font-medium">Email</label>
+                  <input className="w-full border rounded px-3 py-2 bg-slate-50" value={viewVendor.email || ''} disabled />
                 </div>
               </div>
-              <div>
-                <label className="text-sm block mb-1 font-medium">Contact</label>
-                <div className="text-sm">{(viewVendor.contact_first || '') + (viewVendor.contact_first && viewVendor.contact_last ? ' ' : '') + (viewVendor.contact_last || '')}</div>
-              </div>
-              <div>
-                <label className="text-sm block mb-1 font-medium">Phone / Email</label>
-                <div className="text-sm">{viewVendor.work_phone || '-'} / {viewVendor.email || '-'}</div>
-              </div>
 
-              <div className="md:col-span-2 border-t pt-3 mt-2">
+              <div className="border-t pt-3 mt-2">
                 <label className="text-sm block mb-2 font-medium">Attachments</label>
                 <div className="space-y-2">
                   {(!viewVendor.attachments || viewVendor.attachments.length === 0) && (
                     <div className="text-sm text-slate-500">No attachments</div>
                   )}
                   {(viewVendor.attachments || []).map((a: any) => (
-                    <div key={a.filename || a.original_name} className="flex items-center gap-2 text-sm">
-                      <button
-                        type="button"
-                        onClick={() => handleDownloadAttachment(a)}
-                        className="text-sky-600 hover:underline text-left"
-                        title={`Download ${a.original_name || a.filename}`}
-                      >
-                        📎 {a.original_name || a.filename}
-                      </button>
-                      <span className="text-xs text-slate-500">
-                        ({a.file_size ? `${Math.round(a.file_size / 1024)} KB` : 'unknown size'})
-                      </span>
+                    <div key={a.filename || a.original_name} className="flex items-center gap-3">
+                      <div className="flex-1">
+                        <div className="text-sm">{a.original_name || a.filename}</div>
+                        <div className="text-xs text-slate-500">Type: {a.mime_type || 'unknown'} • {a.file_size ? `${Math.round(a.file_size / 1024)} KB` : 'size unknown'}</div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleDownloadAttachment(a)}
+                          className="text-sm px-3 py-1 border rounded bg-white text-sky-600"
+                        >
+                          Open
+                        </button>
+                        <a
+                          href={`${(API_BASE || '').replace(/\/$/, '')}${a.url || `/uploads/vendor/${encodeURIComponent(a.filename || '')}`}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm px-3 py-1 border rounded bg-slate-100"
+                        >
+                          New tab
+                        </a>
+                      </div>
                     </div>
                   ))}
                 </div>
               </div>
-            </div>
 
-            <div className="mt-4 text-right border-t pt-4">
-              <button onClick={() => setViewVendor(null)} className="px-3 py-2 border rounded">Close</button>
-            </div>
+              <div className="mt-4 text-right border-t pt-4">
+                <button onClick={() => setViewVendor(null)} className="px-3 py-2 border rounded">Close</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

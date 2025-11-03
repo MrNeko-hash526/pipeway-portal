@@ -61,20 +61,9 @@ const API_BASE = typeof window !== "undefined"
     toastTimerRef.current = window.setTimeout(() => setToast(null), 3000)
   }
 
-  const handleView = async (id: number) => {
-    setPanelLoading(true)
-    try {
-      const res = await fetch(`${API_BASE.replace(/\/$/, "")}/api/manage-policies/${id}`)
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) throw new Error(body?.message || `HTTP ${res.status}`)
-      setViewPolicy(body.data ?? body)
-    } catch (err: any) {
-      console.error('view load', err)
-      showToast(String(err?.message || 'Failed to load'), 'error')
-      setViewPolicy(null)
-    } finally {
-      setPanelLoading(false)
-    }
+  // redirect to standalone view page
+  const handleView = (id: number) => {
+    window.location.href = `/manage-policies/view?id=${encodeURIComponent(String(id))}`
   }
 
   const handleEdit = (id: number) => {
@@ -464,49 +453,7 @@ const API_BASE = typeof window !== "undefined"
 
        <div className="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">© 2025 CAM powered by Goolean Technologies NA LLC</div>
 
-      {viewPolicy && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-          <div className="w-full max-w-3xl bg-white dark:bg-slate-900 p-6 rounded shadow-xl max-h-[90vh] overflow-auto">
-            <div className="flex items-start justify-between mb-4">
-              <h3 className="text-lg font-semibold">Policy Details</h3>
-              <button type="button" onClick={closeView} className="text-sm px-2 py-1 border rounded">Close</button>
-            </div>
-            {panelLoading ? (
-              <div className="text-sm text-slate-600">Loading...</div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div>
-                  <div className="text-xs text-slate-500">Name</div>
-                  <div className="text-sm font-medium">{viewPolicy.name}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-slate-500">Title</div>
-                  <div className="text-sm">{viewPolicy.title}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-slate-500">Category</div>
-                  <div className="text-sm">{viewPolicy.category}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-slate-500">Status</div>
-                  <div className="text-sm">{viewPolicy.status}</div>
-                </div>
-                <div className="md:col-span-2">
-                  <div className="text-xs text-slate-500">Description</div>
-                  <div className="text-sm whitespace-pre-wrap">{viewPolicy.description ?? "—"}</div>
-                </div>
-                <div className="md:col-span-2">
-                  <div className="text-xs text-slate-500">Content</div>
-                  <div className="text-sm whitespace-pre-wrap">{viewPolicy.content ?? "—"}</div>
-                </div>
-              </div>
-            )}
-            <div className="mt-4 text-right border-t pt-4">
-              <button type="button" onClick={closeView} className="px-3 py-2 border rounded">Close</button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* view opens in standalone page /manage-policies/view?id= */}
      </div>
    )
  }

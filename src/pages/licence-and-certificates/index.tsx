@@ -27,8 +27,6 @@ const initialData: Row[] = []
 
 export default function LicenceAndCertificates() {
   const [data, setData] = useState<Row[]>(initialData)
-  const [showViewModal, setShowViewModal] = useState(false)
-  const [viewing, setViewing] = useState<any>(null) // detailed record from API
   const [query, setQuery] = useState("")
   const [loading, setLoading] = useState(false)
   const [page, setPage] = useState(1)
@@ -239,26 +237,8 @@ export default function LicenceAndCertificates() {
     { key: 'action', label: 'Action' },
   ]
 
-  async function openView(id: number) {
-    setViewing(null)
-    setShowViewModal(true)
-    try {
-      const res = await fetch(`${API_BASE.replace(/\/$/, "")}/api/certificates/${id}`)
-      const body = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        throw new Error(body?.error || "Failed to load record")
-      }
-      setViewing(body?.data ?? body)
-    } catch (err: any) {
-      console.error("view fetch error", err)
-      toast.error(String(err?.message || "Failed to load details"))
-      setShowViewModal(false)
-    }
-  }
-
-  function closeView() {
-    setShowViewModal(false)
-    setViewing(null)
+  function openView(id: number) {
+    window.location.href = `/licence-and-certificates/view?id=${encodeURIComponent(String(id))}`
   }
 
   return (
@@ -434,62 +414,7 @@ export default function LicenceAndCertificates() {
         </div>
       </div>
 
-      {/* View Modal (in-place preview/details) */}
-      {showViewModal && viewing && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded shadow-lg w-full max-w-3xl max-h-[90vh] overflow-auto">
-            <div className="flex items-center justify-between p-4 border-b dark:border-slate-700">
-              <div>
-                <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">
-                  {viewing.original_name || viewing.filename || "Certificate details"}
-                </h3>
-                <p className="text-xs text-slate-600 dark:text-slate-300">
-                  {viewing.cert_type ?? viewing.certType ?? ""}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button className="px-3 py-1 rounded bg-rose-600 text-white" onClick={closeView}>Close</button>
-              </div>
-            </div>
-
-            {/* details (form fields) */}
-            <div className="p-6 grid grid-cols-1 gap-3 text-sm text-slate-700 dark:text-slate-300">
-              <div><strong>Scope:</strong> {viewing.scope ?? (viewing.org_code ? "org" : "company")}</div>
-              <div><strong>Organisation Code:</strong> {viewing.org_code ?? "—"}</div>
-              <div><strong>Company Name:</strong> {viewing.company_name ?? "—"}</div>
-              <div><strong>Certificate Type:</strong> {viewing.cert_type ?? viewing.certType ?? "—"}</div>
-              <div><strong>Expiry Date:</strong> {viewing.exp_date ? new Date(viewing.exp_date).toLocaleDateString() : "—"}</div>
-              <div><strong>Frequency:</strong> {viewing.frequency ?? "—"}</div>
-              <div>
-                <strong>Comment:</strong>
-                <div className="mt-1 whitespace-pre-wrap rounded-md p-2 bg-gray-50 dark:bg-slate-700">{viewing.comment ?? "—"}</div>
-              </div>
-              <div><strong>Uploaded By:</strong> {viewing.uploaded_by ?? "—"}</div>
-              <div><strong>Uploaded At:</strong> {viewing.uploaded_at ?? "—"}</div>
-              <div>
-                <strong>File:</strong>{" "}
-                {viewing.original_name || viewing.filename ? (
-                  <>
-                    <span>{viewing.original_name ?? viewing.filename}</span>
-                    <span className="ml-2">
-                      <a
-                        className="text-sky-600 underline"
-                        href={`${API_BASE.replace(/\/$/, "")}/${(viewing.file_path || viewing.filePath || "").replace(/^\/+/, "")}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        Open
-                      </a>
-                    </span>
-                  </>
-                ) : (
-                  <span>—</span>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Inline modal removed — view opens standalone page */}
     </>
   )
 }

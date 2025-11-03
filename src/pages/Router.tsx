@@ -10,8 +10,9 @@ const Dashboard = React.lazy(() => import("./dashboard/Dashboard"))
 // MANAGE POLICIES COMPONENTS
 // ================================
 const ManagePolicies = React.lazy(() => import("./manage-polocies/index"))
+const AddPolicyPage = React.lazy(() => import("./manage-polocies/add"))
+const ViewPolicyPage = React.lazy(() => import("./manage-polocies/view"))
 const AddPolicyHistoryPage = React.lazy(() => import("./manage-polocies/Histroy"))
-const ManagePoliciesAdd = React.lazy(() => import("./manage-polocies/add"))
 const ManagePoliciesReport = React.lazy(() => import("./manage-polocies/report"))
 
 // ================================
@@ -34,6 +35,7 @@ const AuditManagement = React.lazy(() => import("./audit-management/audit-manage
 // ================================
 const LicenceAndCertificates = React.lazy(() => import("./licence-and-certificates/index"))
 const AddCertificatePage = React.lazy(() => import("./licence-and-certificates/add"))
+const ViewCertificatePage = React.lazy(() => import("./licence-and-certificates/view"))
 
 // ================================
 // TRAINING AND TEST COMPONENTS
@@ -55,6 +57,7 @@ const QuestionSetup = React.lazy(() => import("./training-and-test/question-setu
 const SetupIndex = React.lazy(() => import("./setup/index"))
 const VendorSetup = React.lazy(() => import("./setup/vendor-setup/index"))
 const AddOrganizationPage = React.lazy(() => import("./setup/vendor-setup/add"))
+const ViewOrganizationPage = React.lazy(() => import("./setup/vendor-setup/view"))
 const UserSetup = React.lazy(() => import("./setup/user-setup/index"))
 const AddUserPage = React.lazy(() => import("./setup/user-setup/add"))
 const UserGroupsSetup = React.lazy(() => import("./setup/user-groups-setup/index"))
@@ -97,6 +100,7 @@ const ROUTES: { [path: string]: React.ReactElement } = {
   "/setup": S(<SetupIndex />),
   "/setup/vendor-setup": S(<VendorSetup />),
   "/setup/vendor-setup/add": S(<AddOrganizationPage />),
+  "/setup/vendor-setup/view": S(<ViewOrganizationPage />),
   "/setup/vendor-setup/edit": S(<AddOrganizationPage />),
   "/setup/user-setup": S(<UserSetup />),
   "/setup/user-setup/add": S(<AddUserPage />),
@@ -141,7 +145,8 @@ const ROUTES: { [path: string]: React.ReactElement } = {
   // MANAGE POLICIES ROUTES
   // ================================
   "/manage-policies": S(<ManagePolicies />),
-  "/manage-policies/add": S(<ManagePoliciesAdd />),
+  "/manage-policies/add": S(<AddPolicyPage />),
+  "/manage-policies/view": S(<ViewPolicyPage />),
   "/manage-policies/Policy-History": S(<AddPolicyHistoryPage />),
   "/manage-policies/report": S(<ManagePoliciesReport />),
 
@@ -150,6 +155,7 @@ const ROUTES: { [path: string]: React.ReactElement } = {
   // ================================
   "/licence-and-certificates": S(<LicenceAndCertificates />),
   "/licence-and-certificates/add": S(<AddCertificatePage />),
+  "/licence-and-certificates/view": S(<ViewCertificatePage />),
 }
 
 export default function Router() {
