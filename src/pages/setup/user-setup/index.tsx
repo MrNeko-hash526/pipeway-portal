@@ -180,7 +180,7 @@ export default function UserSetupPage() {
       id: toastId,
       type: 'confirm',
       title: 'Delete user?',
-      message: `Delete "${name ?? ''}" permanently?`,
+      message: `Delete "${name ?? ''}"? This will remove it from the list.`,
       confirmLabel: 'Delete',
       cancelLabel: 'Cancel',
       onConfirm: async () => {
@@ -196,7 +196,7 @@ export default function UserSetupPage() {
             id: String(Date.now()) + Math.random(),
             type: 'info',
             title: 'Deleted',
-            message: `User "${name ?? ''}" deleted successfully.`,
+            message: `User "${name ?? ''}" has been deleted.`,
             timeout: 3000,
           })
         } catch (err) {
@@ -372,7 +372,7 @@ export default function UserSetupPage() {
                       Edit
                     </button>
                     <button type="button" className="text-amber-600 cursor-pointer hover:underline" onClick={() => handleWarn(o.id)}>Warn</button>
-                    <button type="button" className="text-red-600 cursor-pointer hover:underline" onClick={() => handleDelete(o.id, `${o.firstName} ${o.lastName}`)}>Delete</button>
+                    <button type="button" className="text-red-600 cursor-pointer hover:underline" onClick={() => handleDelete(o.id, `${o.first_name} ${o.last_name}`)}>Delete</button>
                   </div>
                 </td>
               </tr>

@@ -140,7 +140,7 @@ export default function UserGroupsSetupPage() {
       id: toastId,
       type: 'confirm',
       title: 'Delete group?',
-      message: `Delete "${name ?? ''}" permanently?`,
+      message: `Delete "${name ?? ''}"? This will remove it from the list.`,
       confirmLabel: 'Delete',
       cancelLabel: 'Cancel',
       onConfirm: async () => {
@@ -155,7 +155,7 @@ export default function UserGroupsSetupPage() {
             id: String(Date.now()) + Math.random(),
             type: 'success',
             title: 'Deleted',
-            message: `Group "${name ?? ''}" deleted successfully.`,
+            message: `Group "${name ?? ''}" has been deleted.`,
             timeout: 3000,
           })
         } catch (err) {

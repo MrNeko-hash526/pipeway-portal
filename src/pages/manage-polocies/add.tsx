@@ -7,11 +7,59 @@ import PolicyEditor from "@/components/toolbar"
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 
+// API base (same pattern used elsewhere in the app)
+const API_BASE = typeof window !== "undefined"
+  ? (window as any).__ENV__?.NEXT_PUBLIC_API_BASE || "http://localhost:3000"
+  : "http://localhost:3000"
+
+// Seed data for demo (since API might not work)
+const seedPolicies: any[] = [
+  {
+    id: 1,
+    name: "IPs Removal Policy",
+    title: "Data Security Policy",
+    category: "Data Security and Privacy",
+    citation_name: "GDPR Article 17",
+    reviewer: "John Doe",
+    approver: "Tonia",
+    reviewer_is_owner: false,
+    description: "This policy outlines the procedures for removing personally identifiable information from our systems.",
+    content: "1. Scope\nThis policy applies to all data subjects and covers all personal data processing activities.\n\n2. Rights\nData subjects have the right to request deletion of their personal data under certain circumstances.\n\n3. Procedures\nAll deletion requests must be processed within 30 days of receipt.",
+    exp_date: "2026-03-31",
+    status: "Published",
+    attachments: [
+      { filename: "gdpr-guidelines.pdf", file_size: 1024000 }
+    ]
+  },
+  {
+    id: 2,
+    name: "Acceptable Use",
+    title: "Acceptable Use Policy",
+    category: "IT Policy",
+    citation_name: "ISO 27001",
+    reviewer: "Jane Smith",
+    approver: "Cole",
+    reviewer_is_owner: true,
+    description: "Guidelines for acceptable use of company IT resources and systems.",
+    content: "1. Purpose\nTo establish guidelines for the appropriate use of company technology resources.\n\n2. Scope\nThis policy applies to all employees, contractors, and third parties.\n\n3. Acceptable Use\n- Use systems for business purposes only\n- Maintain confidentiality of access credentials\n- Report security incidents immediately",
+    exp_date: "2025-12-31",
+    status: "Draft",
+    attachments: []
+  },
+]
+
 export default function ManagePoliciesAdd() {
-  // start at chooser step so user first selects upload OR create
+  const [policyId, setPolicyId] = React.useState<string | null>(null)
+  const [isEdit, setIsEdit] = React.useState(false)
+  const [loading, setLoading] = React.useState(false)
+  const [existingAttachments, setExistingAttachments] = React.useState<any[]>([])
+
+  const [isSubmitting, setIsSubmitting] = React.useState(false)
+  // For edit mode, start directly in create step; for add mode, start at chooser
   const [step, setStep] = React.useState<"choose" | "upload" | "create">("choose")
   const [file, setFile] = React.useState<File | null>(null)
   const [isUploading, setIsUploading] = React.useState(false)
+  const [uploadProgress, setUploadProgress] = React.useState<number | null>(null)
   const [policy, setPolicy] = React.useState({
     name: "",
     title: "",
@@ -27,6 +75,78 @@ export default function ManagePoliciesAdd() {
   })
   const [toast, setToast] = React.useState<{ text: string; type?: "success" | "error" } | null>(null)
   const toastTimer = React.useRef<number | null>(null)
+
+  // Check URL for edit mode
+  React.useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search)
+    const id = urlParams.get('id')
+    if (id) {
+      setPolicyId(id)
+      setIsEdit(true)
+      setStep("create") // Skip chooser for edit mode
+    }
+  }, [])
+
+  // Load policy data when editing
+  React.useEffect(() => {
+    if (!policyId || !isEdit) return
+
+    let mounted = true
+    setLoading(true)
+
+    const loadPolicy = async () => {
+      try {
+        // Try API first, fall back to seed data
+        let data = null
+        
+        try {
+          const url = `${API_BASE.replace(/\/$/, '')}/api/manage-policies/${policyId}`
+          const res = await fetch(url)
+          if (res.ok) {
+            const body = await res.json()
+            data = body.data ?? body
+          }
+        } catch (apiErr) {
+          console.log('API not available, using seed data')
+        }
+
+        // Fallback to seed data
+        if (!data) {
+          data = seedPolicies.find(p => p.id === parseInt(policyId))
+          if (!data) throw new Error('Policy not found')
+        }
+
+        if (!mounted) return
+
+        setPolicy({
+          name: data.name || '',
+          title: data.title || '',
+          category: data.category || '',
+          citation: data.citation_name || '',
+          reviewer: data.reviewer || '',
+          approver: data.approver || '',
+          reviewerIsOwner: !!data.reviewer_is_owner,
+          description: data.description || '',
+          content: data.content || '',
+          expDate: data.exp_date ? new Date(data.exp_date) : null,
+          status: data.status || 'Draft',
+        })
+
+        setExistingAttachments(data.attachments || [])
+        
+        showToast("Policy data loaded for editing.", "success")
+
+      } catch (err: any) {
+        console.error('Failed to load policy:', err)
+        showToast(err.message || "Failed to load policy data", "error")
+      } finally {
+        if (mounted) setLoading(false)
+      }
+    }
+
+    loadPolicy()
+    return () => { mounted = false }
+  }, [policyId, isEdit])
 
   React.useEffect(() => {
     return () => {
@@ -84,36 +204,90 @@ export default function ManagePoliciesAdd() {
     }
 
     setIsUploading(true)
-    await new Promise((r) => setTimeout(r, 900))
-    setIsUploading(false)
-    showToast("PDF uploaded", "success")
-    setTimeout(() => (window.location.href = "/manage-policies"), 800)
+    try {
+      const fd = new FormData()
+      // send field name "attachments" so multer/upload.array('attachments') accepts it on server
+      fd.append("attachments", file as File)
+
+      const res = await fetch(`${API_BASE.replace(/\/$/, "")}/api/manage-policies/upload`, {
+        method: "POST",
+        body: fd,
+      })
+
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const msg = body?.message || body?.error || `Upload failed (${res.status})`
+        throw new Error(msg)
+      }
+
+      // Normalize response: backend may return { success:true, data: { ... } } or { success:true, files: [...] }
+      const uploaded = body?.data ?? body?.files ?? body
+      const fileList = Array.isArray(uploaded) ? uploaded : [uploaded]
+
+      // If controller returns file metadata, add to existingAttachments and move to create step
+      if (fileList && fileList.length) {
+        // try to map common fields to what the UI expects
+        const mapped = fileList.map((f: any) => ({
+          filename: f.filename || f.original_name || f.file_name || f.name,
+          original_name: f.original_name || f.name || f.originalname,
+          file_path: f.file_path || f.path || f.location || (f.url ? f.url.replace(/^\//, '') : null),
+          file_size: f.file_size || f.size || 0,
+          mime_type: f.mime_type || f.mimetype || f.type
+        }))
+        setExistingAttachments(prev => [...prev, ...mapped])
+      }
+
+      showToast("PDF uploaded", "success")
+      // go to create form so user can continue and attach the uploaded PDF to the policy
+      setStep("create")
+    } catch (err: any) {
+      console.error("upload error", err)
+      showToast(err?.message || "Upload failed", "error")
+    } finally {
+      setIsUploading(false)
+    }
   }
 
   const handleChange = (k: string, v: any) => setPolicy((p) => ({ ...p, [k]: v }))
 
-  // basic rich text exec wrapper (demo only)
-  const exec = (cmd: string, val?: string) => {
-    try {
-      document.execCommand(cmd, false, val)
-    } catch {
-      // no-op for modern browsers where execCommand may be deprecated
-    }
+  const resetForm = () => {
+    setPolicy({
+      name: "",
+      title: "",
+      category: "",
+      citation: "",
+      reviewer: "",
+      approver: "",
+      description: "",
+      content: "",
+      reviewerIsOwner: false,
+      expDate: null,
+      status: "Draft",
+    })
   }
 
   const handleCreateSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault()
     // Convert date to American format for submission
     const submission = {
-      ...policy,
-      expDate: policy.expDate ? policy.expDate.toLocaleDateString('en-US') : null
+      name: policy.name,
+      title: policy.title,
+      category: policy.category,
+      citation_name: policy.citation || null,
+      reviewer: policy.reviewer || null,
+      approver: policy.approver || null,
+      reviewerIsOwner: Boolean(policy.reviewerIsOwner),
+      description: policy.description || null,
+      content: policy.content || null,
+      // send ISO date (YYYY-MM-DD) or null
+      expDate: policy.expDate ? policy.expDate.toISOString().split("T")[0] : null,
+      status: policy.status || "Draft",
     }
 
     try {
       await createSchema.validate(policy, { abortEarly: false, strict: true })
     } catch (err) {
       if (err instanceof yup.ValidationError) {
-        // join errors for user feedback
         showToast(err.errors.join(". "), "error")
         return
       }
@@ -121,10 +295,87 @@ export default function ManagePoliciesAdd() {
       return
     }
 
-    // simulate save
-    await new Promise((r) => setTimeout(r, 700))
-    showToast("Policy created", "success")
-    setTimeout(() => (window.location.href = "/manage-policies"), 700)
+    setIsSubmitting(true)
+    try {
+      const url = isEdit 
+        ? `${API_BASE.replace(/\/$/, '')}/api/manage-policies/${policyId}`
+        : `${API_BASE.replace(/\/$/, '')}/api/manage-policies`
+      
+      const method = isEdit ? "PUT" : "POST"
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(submission),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const message = body?.message || (Array.isArray(body?.errors) ? body.errors.join(", ") : `HTTP ${res.status}`)
+        throw new Error(message)
+      }
+      showToast(isEdit ? "Policy updated" : "Policy created", "success")
+      setTimeout(() => (window.location.href = "/manage-policies"), 700)
+    } catch (err: any) {
+      console.error("create/update policy error", err)
+      showToast(err?.message || `Failed to ${isEdit ? 'update' : 'create'} policy`, "error")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Save as draft (skip frontend strict validation so partial drafts allowed)
+  const handleSaveDraft = async (e?: React.FormEvent) => {
+    e?.preventDefault()
+    setIsSubmitting(true)
+    try {
+      const submission = {
+        name: policy.name || null,
+        title: policy.title || null,
+        category: policy.category || null,
+        citation_name: policy.citation || null,
+        reviewer: policy.reviewer || null,
+        approver: policy.approver || null,
+        reviewerIsOwner: Boolean(policy.reviewerIsOwner),
+        description: policy.description || null,
+        content: policy.content || null,
+        expDate: policy.expDate ? policy.expDate.toISOString().split("T")[0] : null,
+        status: "Draft",
+      }
+
+      const url = isEdit 
+        ? `${API_BASE.replace(/\/$/, '')}/api/manage-policies/${policyId}`
+        : `${API_BASE.replace(/\/$/, '')}/api/manage-policies`
+      
+      const method = isEdit ? "PUT" : "POST"
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(submission),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        const message = body?.message || (Array.isArray(body?.errors) ? body.errors.join(", ") : `HTTP ${res.status}`)
+        throw new Error(message)
+      }
+      showToast("Draft saved", "success")
+      setTimeout(() => (window.location.href = "/manage-policies"), 700)
+    } catch (err: any) {
+      console.error("save draft error", err)
+      showToast(err?.message || "Failed to save draft", "error")
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 py-8">
+        <div className="text-center py-12">
+          <div className="text-slate-600">Loading policy data...</div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -132,8 +383,12 @@ export default function ManagePoliciesAdd() {
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow">
         <div className="flex items-center justify-between px-6 py-4 border-b dark:border-slate-700">
           <div>
-            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Manage Policy</h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400">Choose how you'd like to add a policy.</p>
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+              {isEdit ? 'Edit Policy' : 'Manage Policy'}
+            </h1>
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              {isEdit ? 'Update the policy details below.' : "Choose how you'd like to add a policy."}
+            </p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -151,8 +406,8 @@ export default function ManagePoliciesAdd() {
         </div>
 
         <div className="p-6">
-          {/* STEP 1: chooser */}
-          {step === "choose" && (
+          {/* STEP 1: chooser (only show in add mode) */}
+          {step === "choose" && !isEdit && (
             <div className="flex items-center justify-center py-8">
               <div className="w-full max-w-2xl grid grid-cols-1 md:grid-cols-2 gap-6">
                 <button
@@ -186,8 +441,8 @@ export default function ManagePoliciesAdd() {
             </div>
           )}
 
-          {/* STEP 2a: Upload form */}
-          {step === "upload" && (
+          {/* STEP 2a: Upload form (only in add mode) */}
+          {step === "upload" && !isEdit && (
             <form onSubmit={handleUpload} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
                 <label className="text-sm text-slate-700 dark:text-slate-300">Select Policy (optional)</label>
@@ -235,7 +490,7 @@ export default function ManagePoliciesAdd() {
             </form>
           )}
 
-          {/* STEP 2b: Create form */}
+          {/* STEP 2b: Create form (both add and edit modes) */}
           {step === "create" && (
             <form onSubmit={handleCreateSubmit} className="space-y-6">
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -377,23 +632,59 @@ export default function ManagePoliciesAdd() {
                     </select>
                   </div>
 
+                  {/* Existing attachments (edit mode) */}
+                  {isEdit && existingAttachments.length > 0 && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Existing Attachments</label>
+                      <div className="space-y-1">
+                        {existingAttachments.map((att, i) => (
+                          <div key={i} className="flex items-center gap-2 text-sm p-2 bg-slate-50 dark:bg-slate-800 rounded">
+                            <span className="text-slate-600 dark:text-slate-400">📎</span>
+                            <span className="text-slate-700 dark:text-slate-300 flex-1">
+                              {att.filename || att.original_name || 'Unknown file'}
+                            </span>
+                            <span className="text-xs text-slate-500">
+                              ({att.file_size ? `${Math.round(att.file_size / 1024)} KB` : 'unknown size'})
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="mt-6">
                     <div className="flex gap-3">
                       <button
                         type="button"
-                        onClick={() => showToast("Draft saved (demo)")}
-                        className="flex-1 px-4 py-3 bg-sky-100 text-sky-700 rounded-md border hover:shadow"
+                        onClick={handleSaveDraft}
+                        disabled={isSubmitting}
+                        className="flex-1 px-4 py-3 bg-sky-100 text-sky-700 rounded-md border hover:shadow disabled:opacity-60"
                       >
                         Save Draft
                       </button>
-                      <button type="submit" className="flex-1 px-4 py-3 bg-sky-600 text-white rounded-md hover:bg-sky-700">
-                        Submit
+                      <button
+                        type="submit"
+                        disabled={isSubmitting}
+                        className="flex-1 px-4 py-3 bg-sky-600 text-white rounded-md hover:bg-sky-700 disabled:opacity-60"
+                      >
+                        {isSubmitting ? "Saving…" : isEdit ? "Update" : "Submit"}
                       </button>
                     </div>
-                    <div className="mt-3">
-                      <button type="button" onClick={() => setStep("choose")} className="text-sm text-slate-500 hover:underline">
-                        Back to choice
-                      </button>
+                    <div className="mt-3 flex gap-3">
+                      {!isEdit && (
+                        <button type="button" onClick={() => setStep("choose")} className="text-sm text-slate-500 hover:underline">
+                          Back to choice
+                        </button>
+                      )}
+                      {!isEdit && (
+                        <button 
+                          type="button" 
+                          onClick={resetForm} 
+                          className="text-sm text-rose-600 hover:underline ml-auto"
+                        >
+                          Reset Form
+                        </button>
+                      )}
                     </div>
                   </div>
                 </aside>

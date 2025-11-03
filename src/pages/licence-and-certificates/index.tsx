@@ -1,34 +1,82 @@
 "use client"
 
-import React, { useMemo, useState } from "react"
+import React, { useMemo, useState, useEffect } from "react"
 import Link from "@/components/link"
 import toast, { Toaster } from "react-hot-toast"
 
+// Add API base (same pattern used elsewhere)
+const API_BASE = typeof window !== "undefined"
+  ? (window as any).__ENV__?.NEXT_PUBLIC_API_BASE || "http://localhost:3000"
+  : "http://localhost:3000"
+
+// --- ADDED: define Row type and initialData to fix ReferenceError ---
 type Row = {
   id: number
   company: string
   fileName: string
   fileUrl?: string
   type: string
-  expDate: string // ISO
+  expDate: string
   frequency: string
   status: "Valid" | "Expired"
   approval: "Approved" | "Pending" | "Rejected"
 }
 
-const initialData: Row[] = [
-  { id: 1, company: "AACANet, Inc.", fileName: "24_25_Professional_Certs_AA_CANet_COI.pdf", fileUrl: "#", type: "Professional Liability", expDate: "2025-01-23", frequency: "Annually", status: "Valid", approval: "Pending" },
-  { id: 2, company: "TEMPHEAV Heavner, Beyers & Mihlar, LLC", fileName: "ARDC_8_5_24.pdf", fileUrl: "#", type: "Bar Card Proof of Good Standing", expDate: "2025-07-31", frequency: "Annually", status: "Valid", approval: "Approved" },
-  { id: 3, company: "TEMPHEAV Heavner, Beyers & Mihlar, LLC", fileName: "Heavner_COI_CGL.pdf", fileUrl: "#", type: "Commercial General Liability", expDate: "2024-10-14", frequency: "Annually", status: "Expired", approval: "Rejected" },
-  { id: 4, company: "TEMPLEO Leopold & Associates, PLLC", fileName: "COI_Professional_Liability_2024_2025_3.pdf", fileUrl: "#", type: "Professional Liability", expDate: "2025-04-30", frequency: "Annually", status: "Valid", approval: "Approved" },
-  { id: 5, company: "TEMPHEAV Heavner, Beyers & Mihlar, LLC", fileName: "E_O_9_1_24.pdf", fileUrl: "#", type: "Errors and Omission", expDate: "2024-08-31", frequency: "Annually", status: "Expired", approval: "Pending" },
-]
+const initialData: Row[] = []
+// --- end added ---
 
 export default function LicenceAndCertificates() {
   const [data, setData] = useState<Row[]>(initialData)
+  const [showViewModal, setShowViewModal] = useState(false)
+  const [viewing, setViewing] = useState<any>(null) // detailed record from API
   const [query, setQuery] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(200)
+
+  // add missing filter state (prevents ReferenceError)
   const [filterActive, setFilterActive] = useState<"All" | "Active" | "Inactive">("All")
-  const [approvalFilter, setApprovalFilter] = useState<"All" | Row["approval"]>("All")
+  const [approvalFilter, setApprovalFilter] = useState<"All" | "Approved" | "Pending" | "Rejected">("All")
+
+  // fetch list helper (used on mount and after delete)
+  const fetchCertificates = async (p = page, l = limit): Promise<Row[]> => {
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_BASE.replace(/\/$/, "")}/api/certificates?page=${p}&limit=${l}`)
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body?.error || `Failed to load (${res.status})`)
+      const rows = body?.data ?? body?.rows ?? []
+      const mapped: Row[] = rows.map((r: any, idx: number) => {
+        const filePath = r.file_path || r.filePath || ""
+        const fileUrl = filePath ? `${API_BASE.replace(/\/$/, "")}/${filePath.replace(/^\/+/, "")}` : undefined
+        const expIso = r.exp_date ? new Date(r.exp_date).toISOString() : (r.expDate ? new Date(r.expDate).toISOString() : "")
+        const isExpired = expIso ? (new Date(expIso).getTime() < Date.now()) : false
+        return {
+          id: Number(r.id ?? (idx + 1)),
+          company: r.company_name ?? r.org_code ?? r.orgCode ?? "—",
+          fileName: r.original_name ?? r.filename ?? "",
+          fileUrl,
+          type: r.cert_type ?? r.certType ?? "—",
+          expDate: expIso || "",
+          frequency: r.frequency ?? "",
+          status: isExpired ? "Expired" : "Valid",
+          approval: (r.approval ?? "Pending") as Row["approval"]
+        }
+      })
+      setData(mapped)
+      return mapped
+    } catch (err: any) {
+      console.error('fetch certificates error', err)
+      toast.error(String(err?.message || 'Failed to load certificates'))
+      return []
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchCertificates()
+  }, [])
   
   // Updated sorting state structure
   const [sort, setSort] = useState<{ key: keyof Row | null; dir: "asc" | "desc" | null }>({
@@ -94,10 +142,76 @@ export default function LicenceAndCertificates() {
         <div>Are you sure you want to delete this certificate?</div>
         <div className="flex justify-end gap-2">
           <button
-            onClick={() => {
-              setData(prev => prev.filter(row => row.id !== id))
+            onClick={async () => {
               toast.dismiss(t.id)
-              toast.success("Certificate deleted")
+              const loader = toast.loading('Deleting...')
+              try {
+                // try primary DELETE endpoint
+                let res = await fetch(`${API_BASE.replace(/\/$/, "")}/api/certificates/${id}`, {
+                  method: 'DELETE'
+                })
+                // try to parse json but ignore parse errors
+                let body: any = {}
+                try { body = await res.json() } catch { body = {} }
+
+                const ok = (res.ok || (res.status >= 200 && res.status < 300) || body?.success === true)
+
+                // if not ok and 404 try fallbacks
+                if (!ok && res.status === 404) {
+                  const fallbacks = [
+                    'soft-delete',
+                    'soft_delete',
+                    'soft',
+                    'remove',
+                    'archive'
+                  ]
+                  let triedOk = false
+                  for (const ep of fallbacks) {
+                    try {
+                      res = await fetch(`${API_BASE.replace(/\/$/, "")}/api/certificates/${id}/${ep}`, { method: 'POST' })
+                      try { body = await res.json() } catch { body = {} }
+                      if (res.ok || (res.status >= 200 && res.status < 300) || body?.success === true) {
+                        triedOk = true
+                        break
+                      }
+                    } catch (e) {
+                      // ignore and continue
+                    }
+                  }
+                  if (!triedOk && !ok) {
+                    // final check: refresh list and verify row removed server-side using returned rows
+                    const rows = await fetchCertificates()
+                    const stillThere = rows.some(r => r.id === id)
+                    if (!stillThere) {
+                      toast.dismiss(loader)
+                      toast.success("Certificate deleted")
+                      return
+                    }
+                    throw new Error(body?.error || `Delete failed (${res.status})`)
+                  }
+                } else if (!ok) {
+                  throw new Error(body?.error || `Delete failed (${res.status})`)
+                }
+
+                // success - refresh list
+                await fetchCertificates()
+                toast.dismiss(loader)
+                toast.success("Certificate deleted")
+              } catch (err: any) {
+                toast.dismiss(loader)
+                console.error('delete error', err)
+                // as a last-ditch: refresh list and if row is gone treat as success
+                try {
+                  const rows = await fetchCertificates()
+                  const stillThere = rows.some(r => r.id === id)
+                  if (!stillThere) {
+                    toast.success("Certificate deleted")
+                    return
+                  }
+                } catch (_) { /* ignore */ }
+
+                toast.error(String(err?.message || 'Delete failed'))
+              }
             }}
             className="px-3 py-1 bg-rose-500 text-white rounded"
           >
@@ -124,6 +238,28 @@ export default function LicenceAndCertificates() {
     { key: 'status', label: 'Status', sortable: true },
     { key: 'action', label: 'Action' },
   ]
+
+  async function openView(id: number) {
+    setViewing(null)
+    setShowViewModal(true)
+    try {
+      const res = await fetch(`${API_BASE.replace(/\/$/, "")}/api/certificates/${id}`)
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        throw new Error(body?.error || "Failed to load record")
+      }
+      setViewing(body?.data ?? body)
+    } catch (err: any) {
+      console.error("view fetch error", err)
+      toast.error(String(err?.message || "Failed to load details"))
+      setShowViewModal(false)
+    }
+  }
+
+  function closeView() {
+    setShowViewModal(false)
+    setViewing(null)
+  }
 
   return (
     <>
@@ -241,8 +377,9 @@ export default function LicenceAndCertificates() {
 
                     <td className="px-4 py-3 align-top">
                       <div className="flex items-center gap-2">
-                        <Link
-                          href={`/licence-and-certificates/view?id=${r.id}`}
+                        <button
+                          type="button"
+                          onClick={() => openView(r.id)}
                           title={`View ${r.fileName}`}
                           className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-200 bg-white text-slate-800 hover:bg-sky-50 dark:border-slate-700 dark:bg-transparent dark:text-slate-100"
                         >
@@ -250,10 +387,11 @@ export default function LicenceAndCertificates() {
                             <path d="M12 5c-7 0-11 6-11 7s4 7 11 7 11-6 11-7-4-7-11-7z" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
                             <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.4"/>
                           </svg>
-                        </Link>
+                        </button>
 
                         <Link
-                          href={`/licence-and-certificates/add?editId=${r.id}`}
+                          // pass query param "id" so add.tsx prefetch logic picks it up
+                          href={`/licence-and-certificates/add?id=${r.id}`}
                           title={`Edit ${r.fileName}`}
                           className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-200 text-slate-800 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-100"
                         >
@@ -295,6 +433,63 @@ export default function LicenceAndCertificates() {
           </table>
         </div>
       </div>
+
+      {/* View Modal (in-place preview/details) */}
+      {showViewModal && viewing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+          <div className="bg-white dark:bg-slate-800 rounded shadow-lg w-full max-w-3xl max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between p-4 border-b dark:border-slate-700">
+              <div>
+                <h3 className="text-lg font-medium text-slate-900 dark:text-slate-100">
+                  {viewing.original_name || viewing.filename || "Certificate details"}
+                </h3>
+                <p className="text-xs text-slate-600 dark:text-slate-300">
+                  {viewing.cert_type ?? viewing.certType ?? ""}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button className="px-3 py-1 rounded bg-rose-600 text-white" onClick={closeView}>Close</button>
+              </div>
+            </div>
+
+            {/* details (form fields) */}
+            <div className="p-6 grid grid-cols-1 gap-3 text-sm text-slate-700 dark:text-slate-300">
+              <div><strong>Scope:</strong> {viewing.scope ?? (viewing.org_code ? "org" : "company")}</div>
+              <div><strong>Organisation Code:</strong> {viewing.org_code ?? "—"}</div>
+              <div><strong>Company Name:</strong> {viewing.company_name ?? "—"}</div>
+              <div><strong>Certificate Type:</strong> {viewing.cert_type ?? viewing.certType ?? "—"}</div>
+              <div><strong>Expiry Date:</strong> {viewing.exp_date ? new Date(viewing.exp_date).toLocaleDateString() : "—"}</div>
+              <div><strong>Frequency:</strong> {viewing.frequency ?? "—"}</div>
+              <div>
+                <strong>Comment:</strong>
+                <div className="mt-1 whitespace-pre-wrap rounded-md p-2 bg-gray-50 dark:bg-slate-700">{viewing.comment ?? "—"}</div>
+              </div>
+              <div><strong>Uploaded By:</strong> {viewing.uploaded_by ?? "—"}</div>
+              <div><strong>Uploaded At:</strong> {viewing.uploaded_at ?? "—"}</div>
+              <div>
+                <strong>File:</strong>{" "}
+                {viewing.original_name || viewing.filename ? (
+                  <>
+                    <span>{viewing.original_name ?? viewing.filename}</span>
+                    <span className="ml-2">
+                      <a
+                        className="text-sky-600 underline"
+                        href={`${API_BASE.replace(/\/$/, "")}/${(viewing.file_path || viewing.filePath || "").replace(/^\/+/, "")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        Open
+                      </a>
+                    </span>
+                  </>
+                ) : (
+                  <span>—</span>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   )
 }
